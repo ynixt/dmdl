@@ -2,20 +2,20 @@ name: dmdl-dev
 services:
   redis:
     image: redis:8.10.3-alpine
-    command: [redis-server, --requirepass, "${APP_REDIS_PASSWORD:?APP_REDIS_PASSWORD must be set (see dev.env)}", --appendonly, "yes"]
+    command: [redis-server, --requirepass, "${DMDL_REDIS_PASSWORD:?DMDL_REDIS_PASSWORD must be set (see dev.env)}", --appendonly, "yes"]
     ports:
-      - 127.0.0.1:${APP_REDIS_PORT:-6379}:6379
+      - 127.0.0.1:${DMDL_REDIS_PORT:-6379}:6379
     volumes:
       - redis_data:/data
   aria2:
     build: ./docker/aria2
     environment:
-      ARIA2_RPC_SECRET: ${ARIA2_RPC_SECRET:?ARIA2_RPC_SECRET must be set (see dev.env)}
+      DMDL_ARIA2_RPC_SECRET: ${DMDL_ARIA2_RPC_SECRET:?DMDL_ARIA2_RPC_SECRET must be set (see dev.env)}
     ports:
-      - 127.0.0.1:${ARIA2_RPC_PORT:-16843}:6800
+      - 127.0.0.1:${DMDL_ARIA2_RPC_PORT:-16843}:6800
     volumes:
       - aria2_config:/config
-      - ${APP_MEDIA_PATH:-./media}:/downloads
+      - ${DMDL_MEDIA_PATH:-./media}:/downloads
 volumes:
   redis_data:
   aria2_config:

@@ -7,16 +7,16 @@ build-frontend:
 	cd frontend && npm ci && npm run build
 
 up:
-	docker compose up -d --build
+	docker compose -f compose.build.yaml up -d --build
 
 up-dev:
 	docker compose -p dmdl-dev -f docker-compose-dev.yml --env-file dev.env up -d
 
 down:
-	docker compose down
+	docker compose -f compose.build.yaml down
 
 logs:
-	docker compose logs -f --tail=200
+	docker compose -f compose.build.yaml logs -f --tail=200
 
 test:
 	cd backend && ./gradlew test integrationTest ktlintCheck

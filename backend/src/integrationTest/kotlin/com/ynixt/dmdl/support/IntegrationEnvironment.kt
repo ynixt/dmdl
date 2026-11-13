@@ -243,8 +243,8 @@ open class IntegrationEnvironment {
                     .withFileFromPath("allocation-readout.awk", Path.of("../docker/aria2/allocation-readout.awk"))
                     .withFileFromPath("aria2-healthcheck.sh", Path.of("../docker/aria2/aria2-healthcheck.sh")),
             ).withExposedPorts(6800)
-                .withEnv("ARIA2_RPC_SECRET", "fixture-rpc-secret")
-                .withEnv("ARIA2_SAVE_SESSION_INTERVAL", "1")
+                .withEnv("DMDL_ARIA2_RPC_SECRET", "fixture-rpc-secret")
+                .withEnv("DMDL_ARIA2_SAVE_SESSION_INTERVAL", "1")
                 .withCreateContainerCmdModifier(fixedPortBinding(aria2HostPort))
                 .withFileSystemBind(
                     Files.createDirectories(media.resolve(".dmdl")).toString(),

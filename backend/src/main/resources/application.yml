@@ -6,9 +6,10 @@ spring:
       enabled: true
   data:
     redis:
-      host: ${APP_REDIS_HOST:localhost}
-      port: ${APP_REDIS_PORT:6379}
-      password: ${APP_REDIS_PASSWORD:}
+      host: ${DMDL_REDIS_HOST:localhost}
+      port: ${DMDL_REDIS_PORT:6379}
+      username: ${DMDL_REDIS_USERNAME:}
+      password: ${DMDL_REDIS_PASSWORD:}
   session:
     data:
       redis:
@@ -25,12 +26,12 @@ spring:
     locations: classpath:db/sqlite
 server:
   forward-headers-strategy: framework
-  port: ${SERVER_PORT:8080}
+  port: ${DMDL_SERVER_PORT:8080}
   servlet:
     session:
-      timeout: ${APP_SESSION_TIMEOUT:30d}
+      timeout: ${DMDL_SESSION_TIMEOUT:30d}
       cookie:
-        max-age: ${APP_SESSION_TIMEOUT:30d}
+        max-age: ${DMDL_SESSION_TIMEOUT:30d}
 management:
   endpoints:
     web:
@@ -43,18 +44,18 @@ management:
       show-details: when_authorized
 application:
   database:
-    path: ${APP_DB_PATH:./data/dmdl.db}
-    busy-timeout-millis: ${APP_DB_BUSY_TIMEOUT_MILLIS:5000}
+    path: ${DMDL_DB_PATH:./data/dmdl.db}
+    busy-timeout-millis: ${DMDL_DB_BUSY_TIMEOUT_MILLIS:5000}
   storage:
-    root: ${APP_MEDIA_PATH:./media}
+    root: ${DMDL_MEDIA_PATH:./media}
   aria2:
-    rpc-url: ${ARIA2_RPC_URL:http://127.0.0.1:${ARIA2_RPC_PORT:16843}/jsonrpc}
-    rpc-secret: ${ARIA2_RPC_SECRET:change-me}
-    poll-interval: ${ARIA2_POLL_INTERVAL:1s}
-    progress-publication-interval: ${ARIA2_PROGRESS_PUBLICATION_INTERVAL:1s}
-    application-staging-root: ${ARIA2_APPLICATION_STAGING_ROOT:}
-    daemon-staging-root: ${ARIA2_DAEMON_STAGING_ROOT:/downloads/.dmdl}
+    rpc-url: ${DMDL_ARIA2_RPC_URL:http://127.0.0.1:${DMDL_ARIA2_RPC_PORT:16843}/jsonrpc}
+    rpc-secret: ${DMDL_ARIA2_RPC_SECRET:change-me}
+    poll-interval: ${DMDL_ARIA2_POLL_INTERVAL:1s}
+    progress-publication-interval: ${DMDL_ARIA2_PROGRESS_PUBLICATION_INTERVAL:1s}
+    application-staging-root: ${DMDL_ARIA2_APPLICATION_STAGING_ROOT:}
+    daemon-staging-root: ${DMDL_ARIA2_DAEMON_STAGING_ROOT:/downloads/.dmdl}
     connect-timeout: 3s
     request-timeout: 10s
   security:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:4200}
+    allowed-origins: ${DMDL_CORS_ALLOWED_ORIGINS:http://localhost:4200}

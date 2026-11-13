@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-: "${ARIA2_RPC_SECRET:?ARIA2_RPC_SECRET is required}"
+: "${DMDL_ARIA2_RPC_SECRET:?DMDL_ARIA2_RPC_SECRET is required}"
 
-config_dir="${ARIA2_CONFIG_DIR:-/config}"
+config_dir="${DMDL_ARIA2_CONFIG_DIR:-/config}"
 mkdir -p "$config_dir" /downloads/.dmdl
 touch "$config_dir/session.txt"
 
@@ -23,13 +23,13 @@ trap 'exit 143' TERM INT
 
 stdbuf -oL -eL aria2c \
   --enable-rpc=true \
-  --rpc-listen-all="${ARIA2_RPC_LISTEN_ALL:-true}" \
-  --rpc-listen-port="${ARIA2_RPC_PORT:-6800}" \
-  --rpc-secret="${ARIA2_RPC_SECRET}" \
-  --dir="${ARIA2_DEFAULT_DIR:-/tmp}" \
+  --rpc-listen-all="${DMDL_ARIA2_RPC_LISTEN_ALL:-true}" \
+  --rpc-listen-port="${DMDL_ARIA2_RPC_PORT:-6800}" \
+  --rpc-secret="${DMDL_ARIA2_RPC_SECRET}" \
+  --dir="${DMDL_ARIA2_DEFAULT_DIR:-/tmp}" \
   --input-file="$config_dir/session.txt" \
   --save-session="$config_dir/session.txt" \
-  --save-session-interval="${ARIA2_SAVE_SESSION_INTERVAL:-30}" \
+  --save-session-interval="${DMDL_ARIA2_SAVE_SESSION_INTERVAL:-30}" \
   --continue=true \
   --always-resume=true \
   --max-resume-failure-tries=0 \
