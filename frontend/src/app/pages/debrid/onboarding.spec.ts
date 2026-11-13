@@ -165,7 +165,7 @@ describe('Onboarding wizard', () => {
     fixture.detectChanges();
     expect(page.searchRows).toHaveLength(1);
     expect(fixture.nativeElement.querySelectorAll('.source-fields')).toHaveLength(1);
-    page.searchRows[0].name = 'AIOStreams TorBox';
+    page.searchRows[0].name = 'AIOStreams';
     page.draft!.metadataName = 'My AIOMetadata';
     fixture.debugElement
       .query(By.css('p-button[icon="pi pi-plus"]'))
@@ -173,7 +173,7 @@ describe('Onboarding wizard', () => {
     fixture.detectChanges();
     expect(page.searchRows).toHaveLength(2);
     expect(page.payload().search).toHaveLength(2);
-    expect(page.payload().search[0].name).toBe('AIOStreams TorBox');
+    expect(page.payload().search[0].name).toBe('AIOStreams');
     expect(page.payload().metadataName).toBe('My AIOMetadata');
     expect(api.post).not.toHaveBeenCalled();
     const first = page.searchRows[0];
