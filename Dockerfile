@@ -1,6 +1,8 @@
 # Single image: backend (Spring Boot), frontend (Angular served by nginx) and aria2.
 
-FROM eclipse-temurin:25-jdk AS backend-build
+# The jar and the static frontend are platform independent, so both build stages run natively on the
+# build machine (no QEMU emulation for multi-platform builds); only the runtime stage is per-platform.
+FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk AS backend-build
 WORKDIR /app
 COPY backend/gradlew gradlew
 COPY backend/gradle gradle
@@ -8,7 +10,7 @@ COPY backend/build.gradle.kts backend/settings.gradle.kts ./
 COPY backend/src src
 RUN --mount=type=cache,target=/root/.gradle chmod +x gradlew && ./gradlew bootJar --no-daemon
 
-FROM node:24-alpine3.24 AS frontend-build
+FROM --platform=$BUILDPLATFORM node:24-alpine3.24 AS frontend-build
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 COPY frontend/.npmrc ./
