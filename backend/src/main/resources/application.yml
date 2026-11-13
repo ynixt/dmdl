@@ -10,6 +10,7 @@ spring:
       port: ${DMDL_REDIS_PORT:6379}
       username: ${DMDL_REDIS_USERNAME:}
       password: ${DMDL_REDIS_PASSWORD:}
+      database: ${DMDL_REDIS_DATABASE:0}
   session:
     data:
       redis:

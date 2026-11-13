@@ -67,7 +67,7 @@ To save to more than one disk, mount each folder into the `dmdl` service in `com
 
 ### Using your own Redis
 
-Remove the `redis` service (and `depends_on`) from `compose.yaml` and point dmdl at your server with `DMDL_REDIS_HOST`, `DMDL_REDIS_PORT`, `DMDL_REDIS_PASSWORD` and, if your Redis uses ACL users, `DMDL_REDIS_USERNAME`.
+Remove the `redis` service (and `depends_on`) from `compose.yaml` and point dmdl at your server with `DMDL_REDIS_HOST`, `DMDL_REDIS_PORT`, `DMDL_REDIS_PASSWORD` and, if needed, `DMDL_REDIS_USERNAME` and `DMDL_REDIS_DATABASE`. An ACL user needs permission to run `CONFIG SET`, which dmdl uses at startup to enable Redis keyspace notifications for sessions.
 
 ### Updating
 
@@ -79,7 +79,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.2`, or use `edge` for the latest `master` build.
+Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.3`, or use `edge` for the latest `master` build.
 
 ### Environment variables
 
@@ -96,10 +96,11 @@ These are read by the `dmdl` container and can be set under its `environment:`:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `DMDL_REDIS_HOST` | `localhost` | Redis host name. The example sets it to `redis`. |
+| `DMDL_REDIS_HOST` | `localhost` | Redis host name only, without port or database. The example sets it to `redis`. |
 | `DMDL_REDIS_PORT` | `6379` | Redis port. |
 | `DMDL_REDIS_USERNAME` | empty | Optional Redis ACL user. Leave empty to authenticate with the password only (the `default` user). |
 | `DMDL_REDIS_PASSWORD` | empty | Redis password. |
+| `DMDL_REDIS_DATABASE` | `0` | Redis database number, e.g. `2` to keep dmdl apart from other apps on the same server. |
 | `DMDL_SESSION_TIMEOUT` | `30d` | Login session and cookie lifetime. |
 | `DMDL_ARIA2_RPC_SECRET` | random on each start | Secret for the internal aria2 RPC. Only set it if you need a fixed value. |
 | `DMDL_ARIA2_POLL_INTERVAL` | `1s` | How often download status is read from aria2. |
