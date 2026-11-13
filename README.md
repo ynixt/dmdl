@@ -26,62 +26,22 @@ Debrid Media Downloader (dmdl) is an easy way to download movies and TV shows us
 
 dmdl is self-hosted with Docker. You need Docker with Docker Compose.
 
-### 1. Create the files
+### 1. Get the files
 
-Create an empty folder and put these two files in it.
+Create an empty folder and download two files into it:
 
-`compose.yaml`:
+- [`compose.yaml`](compose.yaml) – an example Compose setup with dmdl, Redis and healthchecks. Adjust it to your needs.
+- [`.env.example`](.env.example) – save it as `.env`.
 
-```yaml
-name: dmdl
-services:
-  dmdl:
-    image: ghcr.io/ynixt/dmdl:latest
-    container_name: dmdl
-    restart: unless-stopped
-    stop_grace_period: 30s
-    environment:
-      APP_REDIS_HOST: redis
-      APP_REDIS_PASSWORD: ${REDIS_PASSWORD}
-      APP_SESSION_TIMEOUT: ${APP_SESSION_TIMEOUT:-30d}
-    ports:
-      - ${DMDL_PORT:-8181}:8080
-    volumes:
-      - application_data:/data
-      - ${APP_MEDIA_PATH:-./media}:/media
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  redis:
-    image: redis:8.10.3-alpine
-    restart: unless-stopped
-    command: [redis-server, --requirepass, "${REDIS_PASSWORD}", --appendonly, "yes"]
-    environment:
-      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: [CMD, redis-cli, ping]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-volumes:
-  application_data:
-  redis_data:
+```bash
+curl -o compose.yaml https://raw.githubusercontent.com/ynixt/dmdl/master/compose.yaml
 ```
 
-`.env`:
-
-```env
-DMDL_PORT=8181
-APP_MEDIA_PATH=./media
-REDIS_PASSWORD=choose-a-strong-password
-APP_SESSION_TIMEOUT=30d
+```bash
+curl -o .env https://raw.githubusercontent.com/ynixt/dmdl/master/.env.example
 ```
 
-Change `REDIS_PASSWORD` and point `APP_MEDIA_PATH` to the folder where your movies and shows should be saved (for example `D:/Media`).
+In `.env`, change `DMDL_REDIS_PASSWORD` and point `DMDL_MEDIA_PATH` to the folder where your movies and shows should be saved (for example `D:/Media`).
 
 ### 2. Start it
 
@@ -89,7 +49,7 @@ Change `REDIS_PASSWORD` and point `APP_MEDIA_PATH` to the folder where your movi
 docker compose up -d
 ```
 
-Open <http://localhost:8181> (or the port you set in `DMDL_PORT`).
+Open <http://localhost:8080> (or the port you set in `DMDL_PORT`).
 
 ### 3. Set it up
 
@@ -97,60 +57,56 @@ Open <http://localhost:8181> (or the port you set in `DMDL_PORT`).
 2. Follow the setup wizard:
    - **Metadata addon** – paste the manifest URL of a metadata addon such as [AIOMetadata](https://aiometadata.elfhosted.com/configure) or Cinemeta.
    - **Search addons** – paste the manifest URL of one or more stream addons such as [AIOStreams](https://aiostreams.viren070.me/) or Torrentio. **Configure your debrid service inside the addon**; dmdl only uses the HTTP links it returns.
-   - **Storage** – add at least one folder for each category you want to use. Paths are paths inside the container, so anything under `APP_MEDIA_PATH` starts with `/media`.
+   - **Storage** – add at least one folder for each category you want to use. Paths are paths inside the container, so anything under `DMDL_MEDIA_PATH` starts with `/media`.
    - **Jellyfin** (optional) – server URL and API token to refresh your library after each download.
 3. Search a title, pick a release and a destination folder, and download.
 
 ### Extra destination folders
 
-To save to more than one disk, mount each folder into the container and register its container path in **Settings**:
+To save to more than one disk, mount each folder into the `dmdl` service in `compose.yaml` and register its container path in **Settings**. For example, adding `D:/Movies:/media/hdd/movies` and `E:/Series:/media/ssd/series` under `volumes:` lets you use `/media/hdd/movies` and `/media/ssd/series` as destinations.
 
-```yaml
-    volumes:
-      - application_data:/data
-      - ${APP_MEDIA_PATH:-./media}:/media
-      - D:/Movies:/media/hdd/movies
-      - E:/Series:/media/ssd/series
-```
+### Using your own Redis
 
-Then add `/media/hdd/movies` and `/media/ssd/series` as destinations.
+Remove the `redis` service (and `depends_on`) from `compose.yaml` and point dmdl at your server with `DMDL_REDIS_HOST`, `DMDL_REDIS_PORT`, `DMDL_REDIS_PASSWORD` and, if your Redis uses ACL users, `DMDL_REDIS_USERNAME`.
 
 ### Updating
 
 ```bash
 docker compose pull
+```
+
+```bash
 docker compose up -d
 ```
 
-Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.1`, or use `edge` for the latest `master` build.
+Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.2`, or use `edge` for the latest `master` build.
 
 ### Environment variables
 
-These go in `.env` and are read by `compose.yaml`:
+These go in `.env` and are used by the example `compose.yaml`:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `DMDL_PORT` | `8181` | Port on your machine where the web UI is published. |
-| `APP_MEDIA_PATH` | `./media` | Folder on your machine where downloads are saved. It is mounted at `/media` inside the container. |
-| `REDIS_PASSWORD` | – (required) | Password for the Redis container. Compose refuses to start without it. |
-| `APP_SESSION_TIMEOUT` | `30d` | How long you stay signed in without activity, e.g. `12h`, `7d`, `30d`. |
+| `DMDL_PORT` | `8080` | Port on your machine where the web UI is published. |
+| `DMDL_MEDIA_PATH` | `./media` | Folder on your machine where downloads are saved. It is mounted at `/media` inside the container. |
+| `DMDL_REDIS_PASSWORD` | – | Password of the bundled Redis container. Always set one. |
+| `DMDL_SESSION_TIMEOUT` | `30d` | How long you stay signed in without activity, e.g. `12h`, `7d`, `30d`. |
 
-These can be set under `environment:` of the `dmdl` service:
+These are read by the `dmdl` container and can be set under its `environment:`:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `APP_REDIS_HOST` | `localhost` | Redis host name. Use `redis` with the compose file above. |
-| `APP_REDIS_PORT` | `6379` | Redis port. |
-| `APP_REDIS_PASSWORD` | empty | Redis password. Must match `REDIS_PASSWORD`. |
-| `APP_SESSION_TIMEOUT` | `30d` | Login session and cookie lifetime. |
-| `ARIA2_RPC_SECRET` | random on each start | Secret for the internal aria2 RPC. Only set it if you need a fixed value. |
-| `ARIA2_POLL_INTERVAL` | `1s` | How often download status is read from aria2. |
-| `ARIA2_PROGRESS_PUBLICATION_INTERVAL` | `1s` | How often live progress is pushed to the browser. |
-| `ARIA2_SAVE_SESSION_INTERVAL` | `30` | Seconds between saves of the aria2 session (used to resume after a restart). |
-| `APP_DB_BUSY_TIMEOUT_MILLIS` | `5000` | How long the SQLite database waits for a lock before failing. |
-| `JAVA_OPTS` | empty | Extra JVM options, e.g. `-Xmx512m`. |
-
-The image also sets internal variables (`SERVER_ADDRESS`, `SERVER_PORT`, `APP_DB_PATH`, `APP_MEDIA_PATH`, `ARIA2_RPC_PORT`, `ARIA2_RPC_URL`, `ARIA2_RPC_LISTEN_ALL`, `ARIA2_CONFIG_DIR`, `ARIA2_DEFAULT_DIR`, `ARIA2_APPLICATION_STAGING_ROOT`, `ARIA2_DAEMON_STAGING_ROOT`) that wire the services together inside the container. Leave them as they are.
+| `DMDL_REDIS_HOST` | `localhost` | Redis host name. The example sets it to `redis`. |
+| `DMDL_REDIS_PORT` | `6379` | Redis port. |
+| `DMDL_REDIS_USERNAME` | empty | Optional Redis ACL user. Leave empty to authenticate with the password only (the `default` user). |
+| `DMDL_REDIS_PASSWORD` | empty | Redis password. |
+| `DMDL_SESSION_TIMEOUT` | `30d` | Login session and cookie lifetime. |
+| `DMDL_ARIA2_RPC_SECRET` | random on each start | Secret for the internal aria2 RPC. Only set it if you need a fixed value. |
+| `DMDL_ARIA2_POLL_INTERVAL` | `1s` | How often download status is read from aria2. |
+| `DMDL_ARIA2_PROGRESS_PUBLICATION_INTERVAL` | `1s` | How often live progress is pushed to the browser. |
+| `DMDL_ARIA2_SAVE_SESSION_INTERVAL` | `30` | Seconds between saves of the aria2 session (used to resume after a restart). |
+| `DMDL_DB_BUSY_TIMEOUT_MILLIS` | `5000` | How long the SQLite database waits for a lock before failing. |
+| `DMDL_JAVA_OPTS` | empty | Extra JVM options, e.g. `-Xmx512m`. |
 
 ## License
 

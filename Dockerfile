@@ -41,19 +41,7 @@ RUN sed -i 's/\r$//' /usr/local/bin/start-aria2 /usr/local/bin/aria2-healthcheck
 COPY --from=backend-build /app/build/libs/*.jar /app/app.jar
 COPY --from=frontend-build /app/dist/dmdl/browser /usr/share/nginx/html
 
-# The backend listens only on loopback; nginx (port 8080) is the single entry point.
-# /downloads is a symlink to /media so aria2 and the backend see the same staging files.
-ENV SERVER_ADDRESS=127.0.0.1 \
-    SERVER_PORT=8081 \
-    ARIA2_RPC_PORT=6800 \
-    ARIA2_RPC_LISTEN_ALL=false \
-    ARIA2_RPC_URL=http://127.0.0.1:6800/jsonrpc \
-    ARIA2_CONFIG_DIR=/data/aria2 \
-    ARIA2_DEFAULT_DIR=/tmp \
-    APP_DB_PATH=/data/dmdl.db \
-    APP_MEDIA_PATH=/media \
-    ARIA2_APPLICATION_STAGING_ROOT=/media/.dmdl \
-    ARIA2_DAEMON_STAGING_ROOT=/downloads/.dmdl
+# nginx (port 8080) is the only entry point. Internal ports and paths are wired in dmdl-entrypoint.
 
 WORKDIR /app
 EXPOSE 8080

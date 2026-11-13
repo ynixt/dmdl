@@ -2,10 +2,6 @@
 <project version="4">
   <component name="CompilerConfiguration">
     <bytecodeTargetLevel>
-      <module name="dmdl" target="25" />
-      <module name="dmdl.integrationTest" target="25" />
-      <module name="dmdl.main" target="25" />
-      <module name="dmdl.test" target="25" />
       <module name="kaizoku-debrid" target="25" />
       <module name="kaizoku-debrid.integrationTest" target="25" />
       <module name="kaizoku-debrid.main" target="25" />
