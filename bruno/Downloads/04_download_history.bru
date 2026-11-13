@@ -1,0 +1,11 @@
+meta {
+  name: Download history
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/downloads/{{requestId}}/history
+  body: none
+  auth: none
+}

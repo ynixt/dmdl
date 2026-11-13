@@ -1,0 +1,210 @@
+[
+  {
+    "labelKey": "QUALITY.PRESET_AUDIO_PTBR",
+    "name": "Áudio PT-BR",
+    "category": "LANGUAGE",
+    "matchType": "AUDIO_CONTAINS",
+    "value": "PT-BR",
+    "defaultScore": 80
+  },
+  {
+    "labelKey": "QUALITY.PRESET_AUDIO_EN",
+    "name": "Audio English",
+    "category": "LANGUAGE",
+    "matchType": "AUDIO_CONTAINS",
+    "value": "EN",
+    "defaultScore": 60
+  },
+  {
+    "labelKey": "QUALITY.PRESET_AUDIO_JA",
+    "name": "Audio Japanese",
+    "category": "LANGUAGE",
+    "matchType": "AUDIO_CONTAINS",
+    "value": "JA",
+    "defaultScore": 60
+  },
+  {
+    "labelKey": "QUALITY.PRESET_AUDIO_ES",
+    "name": "Audio Spanish",
+    "category": "LANGUAGE",
+    "matchType": "AUDIO_CONTAINS",
+    "value": "ES",
+    "defaultScore": 50
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_PTBR",
+    "name": "Legenda PT-BR",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "PT-BR",
+    "defaultScore": 50
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_EN",
+    "name": "Subtitle English",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "EN",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_ES",
+    "name": "Subtitle Spanish",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "ES",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_RU",
+    "name": "Subtitle Russian",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "RU",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_IT",
+    "name": "Subtitle Italian",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "IT",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_ZH",
+    "name": "Subtitle Chinese",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "CN",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_FR",
+    "name": "Subtitle French",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "FR",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_DE",
+    "name": "Subtitle German",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "DE",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_AR",
+    "name": "Subtitle Arabic",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "AR",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_VI",
+    "name": "Subtitle Vietnamese",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "VN",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_ID",
+    "name": "Subtitle Indonesian",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "ID",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_MS",
+    "name": "Subtitle Malay",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "MY",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_SUB_TH",
+    "name": "Subtitle Thai",
+    "category": "LANGUAGE",
+    "matchType": "SUBTITLE_CONTAINS",
+    "value": "TH",
+    "defaultScore": 40
+  },
+  {
+    "labelKey": "QUALITY.PRESET_DUAL_AUDIO",
+    "name": "Dual Audio",
+    "category": "LANGUAGE",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\bdual[._-]?audio\\b",
+    "defaultScore": 30
+  },
+  {
+    "labelKey": "QUALITY.PRESET_MULTI",
+    "name": "Multi",
+    "category": "LANGUAGE",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\bmulti\\b",
+    "defaultScore": 20
+  },
+  {
+    "labelKey": "QUALITY.PRESET_REMUX",
+    "name": "REMUX",
+    "category": "SOURCE",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\bremux\\b",
+    "defaultScore": 500
+  },
+  {
+    "labelKey": "QUALITY.PRESET_X265_HEVC",
+    "name": "x265/HEVC",
+    "category": "CODEC",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\b(x265|hevc)\\b",
+    "defaultScore": 20
+  },
+  {
+    "labelKey": "QUALITY.PRESET_HDR10",
+    "name": "HDR10",
+    "category": "HDR",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\bhdr10\\b",
+    "defaultScore": 500
+  },
+  {
+    "labelKey": "QUALITY.PRESET_DV",
+    "name": "Dolby Vision",
+    "category": "HDR",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\b(dv|dovi|dolby[._-]?vision)\\b",
+    "defaultScore": 600
+  },
+  {
+    "labelKey": "QUALITY.PRESET_ATMOS",
+    "name": "Atmos",
+    "category": "AUDIO",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\batmos\\b",
+    "defaultScore": 400
+  },
+  {
+    "labelKey": "QUALITY.PRESET_TRUEHD",
+    "name": "TrueHD",
+    "category": "AUDIO",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)\\btrue[._-]?hd\\b",
+    "defaultScore": 300
+  },
+  {
+    "labelKey": "QUALITY.PRESET_DTS_HD_MA",
+    "name": "DTS-HD MA",
+    "category": "AUDIO",
+    "matchType": "TITLE_REGEX",
+    "value": "(?i)dts[._-]?hd[._-]?ma",
+    "defaultScore": 250
+  }
+]

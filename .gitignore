@@ -1,0 +1,7 @@
+/jellyfin/shared/kaizoku-api-key.txt
+/jellyfin/shared/kaizoku-nginx-api-key.txt
+/media
+/data/
+hs_err_pid*.log
+replay_pid*.log
+/openspec/

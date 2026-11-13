@@ -1,0 +1,23 @@
+meta {
+  name: Search catalog
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/discovery/search
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+{
+  "catalogId": "{{catalogId}}",
+  "resourceType": "movie",
+  "query": "{{searchQuery}}"
+}
+}

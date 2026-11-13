@@ -1,0 +1,11 @@
+meta {
+  name: Remove search addon
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/addons/search/{{searchAddonId}}
+  body: none
+  auth: none
+}

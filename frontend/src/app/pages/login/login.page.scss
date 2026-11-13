@@ -1,0 +1,24 @@
+:host {
+  display: block;
+}
+
+.login-page {
+  display: grid;
+  min-height: calc(100dvh - 64px);
+  padding: 1.5rem;
+  place-items: center;
+  box-sizing: border-box;
+}
+
+.login-card {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+  min-width: 0;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}

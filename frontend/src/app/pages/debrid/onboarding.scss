@@ -1,0 +1,116 @@
+.wizard {
+  max-width: 960px;
+  gap: 2rem;
+}
+.wizard-heading {
+  display: grid;
+  gap: 0.75rem;
+}
+.wizard-progress {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  padding: 0;
+  list-style: none;
+  gap: 0.75rem;
+}
+.wizard-progress li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+}
+.wizard-progress li > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.step-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 50%;
+  font-weight: 600;
+}
+.current {
+  color: var(--p-primary-color) !important;
+}
+.current .step-mark {
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  border-color: var(--p-primary-color);
+}
+.done .step-mark {
+  color: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+}
+.wizard-panel {
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  gap: 2rem;
+}
+.wizard-section-heading {
+  display: grid;
+  gap: 0.75rem;
+}
+.wizard-fields {
+  display: grid;
+  gap: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.wizard-fields .hint {
+  overflow-wrap: anywhere;
+}
+.source-fields {
+  display: grid;
+  gap: 1rem;
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+}
+.wizard-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--p-content-border-color);
+}
+.naming-example {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--p-content-hover-background);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+select {
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid var(--p-inputtext-border-color);
+  border-radius: var(--p-inputtext-border-radius);
+  background: var(--p-inputtext-background);
+  color: var(--p-inputtext-color);
+  font: inherit;
+}
+@media (max-width: 760px) {
+  .wizard-progress {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 1rem;
+  }
+  .wizard-progress li {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .step-mark {
+    flex-shrink: 0;
+    width: 1.65rem;
+    height: 1.65rem;
+  }
+}
+@media (max-width: 450px) {
+  .wizard-progress {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

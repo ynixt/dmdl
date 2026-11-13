@@ -1,0 +1,19 @@
+meta {
+  name: Retry notification
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/downloads/{{requestId}}/notification/retry
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+{}
+}
