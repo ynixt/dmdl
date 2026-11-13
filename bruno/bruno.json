@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Debrid Media Downloader",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

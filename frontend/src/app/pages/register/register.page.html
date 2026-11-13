@@ -1,0 +1,72 @@
+<section class="login-page">
+  <p-card class="login-card">
+    <ng-template #header>
+      <div class="px-6 pt-6">
+        <h1 class="m-0 text-xl font-semibold">{{ 'PAGES.REGISTER.TITLE' | translate }}</h1>
+        <p class="mb-0 mt-1 opacity-70">{{ 'PAGES.REGISTER.SUBTITLE' | translate }}</p>
+      </div>
+    </ng-template>
+    <form [formGroup]="form" class="mt-2 grid gap-4" (ngSubmit)="submit()">
+      <label class="grid gap-2">
+        <span>{{ 'PAGES.LOGIN.FORM.USERNAME.LABEL' | translate }}</span>
+        <input
+          pInputText
+          formControlName="username"
+          autocomplete="username"
+          maxlength="64"
+          [attr.aria-invalid]="form.controls.username.touched && form.controls.username.invalid"
+        />
+        @if (form.controls.username.touched && form.controls.username.invalid) {
+          <small class="text-[var(--app-error)]">{{
+            'PAGES.REGISTER.USERNAME_HELP' | translate
+          }}</small>
+        }
+      </label>
+      <label class="grid gap-2">
+        <span>{{ 'PAGES.LOGIN.FORM.PASSWORD.LABEL' | translate }}</span>
+        <input
+          pInputText
+          type="password"
+          formControlName="password"
+          autocomplete="new-password"
+          aria-describedby="password-help"
+          [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid"
+        />
+        <small
+          id="password-help"
+          [style.color]="
+            form.controls.password.touched && form.controls.password.invalid
+              ? 'var(--app-error)'
+              : null
+          "
+        >
+          {{ 'PAGES.REGISTER.PASSWORD_HELP' | translate }}
+        </small>
+      </label>
+      <label class="grid gap-2">
+        <span>{{ 'PAGES.REGISTER.CONFIRM_PASSWORD' | translate }}</span>
+        <input
+          pInputText
+          type="password"
+          formControlName="confirmation"
+          autocomplete="new-password"
+          [attr.aria-invalid]="
+            form.controls.confirmation.touched &&
+            (form.controls.confirmation.invalid || form.hasError('passwordMismatch'))
+          "
+        />
+        @if (form.controls.confirmation.touched && form.hasError('passwordMismatch')) {
+          <small class="text-[var(--app-error)]">{{
+            'PAGES.REGISTER.PASSWORD_MISMATCH' | translate
+          }}</small>
+        }
+      </label>
+      @if (errorKey()) {
+        <p-message severity="error">{{ errorKey()! | translate }}</p-message>
+      }
+      <button pButton type="submit" class="min-h-11" [disabled]="form.invalid || submitting()">
+        {{ (submitting() ? 'COMMON.LOADING' : 'PAGES.REGISTER.SUBMIT') | translate }}
+      </button>
+    </form>
+  </p-card>
+</section>

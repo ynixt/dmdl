@@ -1,0 +1,46 @@
+meta {
+  name: Create movie request
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/downloads
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+{
+  "content": {
+    "identity": {
+      "sourceId": "{{metadataSourceId}}",
+      "sourceRevision": 1,
+      "resourceType": "movie",
+      "contentId": "{{contentId}}"
+    },
+    "category": "MOVIE",
+    "title": "Example",
+    "year": 2024
+  },
+  "release": {
+    "title": "Example release",
+    "provenance": {
+      "addonId": "{{searchAddonId}}",
+      "addonRevision": 1,
+      "addonName": "Configured source",
+      "sourcePosition": 0,
+      "resultPosition": 0
+    },
+    "reference": {
+      "type": "PROVIDER_HTTP",
+      "value": "{{downloadUrl}}"
+    }
+  },
+  "destinationId": "{{destinationId}}"
+}
+}

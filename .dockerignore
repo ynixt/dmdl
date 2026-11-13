@@ -1,0 +1,12 @@
+.git
+.idea
+frontend/node_modules
+frontend/dist
+frontend/.angular
+backend/build
+backend/.gradle
+backend/.idea
+media
+data
+*.env
+openspec

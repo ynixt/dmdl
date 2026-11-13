@@ -1,0 +1,206 @@
+<div class="page">
+  <header class="row">
+    <h1>{{ 'KZ.DOWNLOADS' | translate }}</h1>
+    <p-button
+      [label]="'KZ.REMOVE_ALL_COMPLETED' | translate"
+      icon="pi pi-trash"
+      severity="secondary"
+      (onClick)="removeFromHistory()"
+      [disabled]="busy() || !hasRemovableHistory()"
+    />
+  </header>
+  @if (error()) {
+    <p role="alert" class="error">{{ error() | translate }}</p>
+  }
+  @for (item of items(); track item.request.id) {
+    @let request = item.request;
+    <section class="panel">
+      <div class="compact-stack">
+        <div class="row download-summary">
+          <h2>{{ request.content.title }}</h2>
+          <span class="status">{{
+            'KZ.STATE_' + (cancelling(request) ? 'CANCELLING' : request.state) | translate
+          }}</span
+          ><span>{{ request.provider }}</span>
+        </div>
+        @if (request.content.episode !== undefined && request.content.episode !== null) {
+          <p>
+            S{{ request.content.season }} E{{ request.content.episode }} —
+            {{ request.content.episodeTitle }}
+          </p>
+        }
+      </div>
+      @if (request.state !== 'CANCELLED' && !cancelling(request)) {
+        <div class="compact-stack transfer-metrics">
+          @if (request.progress.allocation; as allocation) {
+            <p role="status" aria-live="polite">
+              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+              {{ 'KZ.ALLOCATING_SPACE' | translate }}
+              <strong class="allocation-percentage"
+                >{{
+                  (100 * allocation.allocatedBytes) / allocation.totalBytes | number: '1.0-2'
+                }}%</strong
+              >
+              {{ allocation.allocatedBytes / byteScale(allocation.totalBytes) | number: '1.1-1' }} /
+              {{ allocation.totalBytes / byteScale(allocation.totalBytes) | number: '1.1-1' }}
+              {{ byteUnit(allocation.totalBytes) }}
+            </p>
+          } @else if (preparingTransfer(request)) {
+            <p role="status">
+              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+              {{ 'KZ.PREPARING_TRANSFER' | translate }}
+            </p>
+          }
+          <p-progressbar [value]="percentage(request)">
+            <ng-template #content let-value>{{ value | number: '1.0-2' }}%</ng-template>
+          </p-progressbar>
+          <p>
+            {{
+              request.progress.completedBytes / byteScale(request.progress.totalBytes)
+                | number: '1.1-1'
+            }}
+            /
+            {{
+              (request.progress.totalBytes ?? 0) / byteScale(request.progress.totalBytes)
+                | number: '1.1-1'
+            }}
+            {{ byteUnit(request.progress.totalBytes) }} ·
+            {{ request.progress.speedBytesPerSecond / 1048576 | number: '1.1-1' }} MiB/s
+          </p>
+          @if (request.state === 'TRANSFERRING' && !cancelling(request)) {
+            <p class="hint">
+              {{
+                (request.progress.allocation ? 'KZ.ALLOCATION_ETA' : 'KZ.DOWNLOAD_ETA') | translate
+              }}
+              @let seconds = remainingSeconds(request);
+              @if (seconds !== undefined) {
+                {{ duration(seconds) }}
+              } @else {
+                {{ 'KZ.CALCULATING_ETA' | translate }}
+              }
+            </p>
+          }
+          @let connections = request.progress.connections;
+          @if (
+            request.state === 'TRANSFERRING' && connections !== undefined && connections !== null
+          ) {
+            <p class="open-connections">
+              {{ 'KZ.OPEN_CONNECTIONS' | translate }} · {{ connections }}
+            </p>
+            @let speeds = request.progress.connectionSpeedsBytesPerSecond;
+            @if (speeds?.length) {
+              <ul class="connection-speeds" [attr.aria-label]="'KZ.CONNECTION_SPEEDS' | translate">
+                @for (speed of speeds ?? []; track $index) {
+                  @let rate = connectionRate(speed);
+                  <li>
+                    <span>{{ 'KZ.CONNECTION' | translate }} {{ $index + 1 }}</span>
+                    <strong>{{ rate.value | number: '1.0-2' }} {{ rate.unit }}</strong>
+                  </li>
+                }
+              </ul>
+            } @else if (connections > 0) {
+              <p class="hint">{{ 'KZ.CONNECTION_SPEEDS_UNAVAILABLE' | translate }}</p>
+            }
+          }
+        </div>
+      }
+      @if (request.error) {
+        <p class="error">{{ request.error | translate }}</p>
+      }
+      @if (
+        request.state === 'TRANSFERRING' &&
+        !cancelling(request) &&
+        request.execution.fileAllocationOverride === 'PREALLOC'
+      ) {
+        <p class="hint">{{ 'KZ.ALLOCATION_FALLBACK' | translate }}</p>
+      }
+      @if (request.execution.finalPath) {
+        <p class="path">{{ request.execution.finalPath }}</p>
+      }
+      <p class="path">
+        {{ 'KZ.DESTINATION' | translate }} · {{ request.organization.destinationName }} ·
+        {{ request.organization.storageRoot }}
+      </p>
+      @if (request.execution.originalFileName) {
+        <p class="path">{{ request.execution.originalFileName }}</p>
+      }
+      <div class="row">
+        @if (canRemoveFromHistory(request)) {
+          <p-button
+            [label]="'KZ.REMOVE_FROM_HISTORY' | translate"
+            icon="pi pi-trash"
+            severity="secondary"
+            (onClick)="removeFromHistory(request.id)"
+            [disabled]="busy()"
+          />
+        }
+        @if (canPause(request.state)) {
+          <p-button
+            [label]="'KZ.PAUSE' | translate"
+            severity="secondary"
+            (onClick)="control(request, 'PAUSE')"
+            [disabled]="busy()"
+          />
+        }
+        @if (request.state === 'PAUSED') {
+          <p-button
+            [label]="'KZ.RESUME' | translate"
+            (onClick)="control(request, 'RESUME')"
+            [disabled]="busy()"
+          />
+        }
+        @if (request.state === 'FAILED') {
+          <p-button
+            [label]="'KZ.RETRY' | translate"
+            (onClick)="control(request, 'RETRY')"
+            [disabled]="busy()"
+          />
+        }
+        @if (canCancel(request.state) || cancelling(request)) {
+          <p-button
+            [label]="(cancelling(request) ? 'KZ.CANCELLING' : 'KZ.CANCEL') | translate"
+            severity="danger"
+            (onClick)="control(request, 'CANCEL')"
+            [disabled]="busy() || cancelling(request)"
+            [loading]="cancelling(request)"
+          />
+        }
+        <p-button
+          [label]="'KZ.HISTORY' | translate"
+          severity="secondary"
+          (onClick)="loadHistory(request.id)"
+        />
+      </div>
+      @if (item.notification; as notification) {
+        <div class="compact-stack notification">
+          <p>
+            {{ 'KZ.JELLYFIN_NOTIFICATION' | translate }}:
+            {{ 'KZ.NOTIFY_' + notification.state | translate }}
+          </p>
+          @if (notification.error) {
+            <p class="error">{{ notification.error }}</p>
+          }
+          @if (notification.state === 'FAILED' || notification.state === 'SKIPPED') {
+            <p-button
+              [label]="'KZ.RETRY_NOTIFICATION' | translate"
+              severity="secondary"
+              (onClick)="this.notification(request.id)"
+              [disabled]="busy()"
+            />
+          }
+        </div>
+      }
+      @if (history()[request.id]; as events) {
+        <ol class="event-list">
+          @for (event of events; track event.id) {
+            <li>
+              {{ event.occurredAt | date: 'short' }} — {{ 'KZ.STATE_' + event.state | translate }}
+            </li>
+          }
+        </ol>
+      }
+    </section>
+  } @empty {
+    <p>{{ 'KZ.NO_DOWNLOADS' | translate }}</p>
+  }
+</div>

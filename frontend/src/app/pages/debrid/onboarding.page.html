@@ -1,0 +1,257 @@
+<main class="page wizard">
+  <header class="wizard-heading">
+    <h1>{{ 'KZ.SETUP' | translate }}</h1>
+    <p class="muted">{{ 'KZ.WIZARD_INTRO' | translate }}</p>
+  </header>
+  <ol class="wizard-progress" [attr.aria-label]="'KZ.SETUP_PROGRESS' | translate">
+    @for (item of steps; track item; let i = $index) {
+      <li
+        [class.current]="step() === i"
+        [class.done]="step() > i"
+        [attr.aria-current]="step() === i ? 'step' : null"
+      >
+        <span class="step-mark" aria-hidden="true">
+          @if (step() > i) {
+            <i class="pi pi-check"></i>
+          } @else {
+            {{ i + 1 }}
+          }
+        </span>
+        <span>{{ 'KZ.STEP_' + item | translate }}</span>
+      </li>
+    }
+  </ol>
+  @if (error()) {
+    <p role="alert" class="error">{{ error() | translate }}</p>
+  }
+  @for (entry of errorEntries(); track entry[0]) {
+    <p role="alert" class="error">
+      {{ errorLabel(entry[0]) | translate }} — {{ entry[1] | translate }}
+    </p>
+  }
+  @if (draft; as value) {
+    <section class="panel wizard-panel" [attr.aria-busy]="busy()">
+      <div class="wizard-section-heading">
+        <h2>{{ 'KZ.STEP_' + steps[step()] | translate }}</h2>
+        <p class="hint">{{ 'KZ.STEP_HELP_' + steps[step()] | translate }}</p>
+      </div>
+      <fieldset class="wizard-fields" [disabled]="busy()">
+        @if (step() === 0) {
+          <div class="field">
+            <label for="setup-language">{{ 'KZ.LANGUAGE' | translate }}</label>
+            <p-select
+              inputId="setup-language"
+              [options]="languages"
+              [(ngModel)]="value.settings.locale"
+              (ngModelChange)="changeLanguage($event)"
+            />
+          </div>
+
+          <p class="hint">{{ 'KZ.METADATA_EXAMPLES' | translate }}</p>
+          <a
+            href="https://aiometadata.elfhosted.com/configure"
+            target="_blank"
+            rel="noopener noreferrer"
+            >{{ 'KZ.CONFIGURE_AIOMETADATA' | translate }}</a
+          >
+          <div class="field">
+            <label for="setup-metadata-name">{{ 'KZ.ADDON_NAME' | translate }}</label>
+            <input
+              pInputText
+              id="setup-metadata-name"
+              [(ngModel)]="value.metadataName"
+              placeholder="AIOMetadata"
+            />
+            <small class="hint">{{ 'KZ.ADDON_NAME_HELP' | translate }}</small>
+          </div>
+          <div class="field">
+            <label for="setup-metadata">{{ 'KZ.MANIFEST_URL' | translate }}</label>
+            <input
+              pInputText
+              id="setup-metadata"
+              [(ngModel)]="value.metadataUrl"
+              placeholder="https://…/manifest.json"
+              autocomplete="off"
+              aria-describedby="setup-metadata-error"
+              [attr.aria-invalid]="!!errors()['metadata.manifestUrl']"
+            />
+          </div>
+          @if (errors()['metadata.manifestUrl']; as message) {
+            <p id="setup-metadata-error" role="alert" class="error">{{ message | translate }}</p>
+          }
+          <p class="hint">{{ 'KZ.MANIFEST_URL_HELP' | translate }}</p>
+        }
+        @if (step() === 1) {
+          <p class="hint">{{ 'KZ.SEARCH_EXAMPLES' | translate }}</p>
+          <a href="https://aiostreams.viren070.me/" target="_blank" rel="noopener noreferrer">{{
+            'KZ.CONFIGURE_AIOSTREAMS' | translate
+          }}</a>
+          @for (source of searchRows; track source; let index = $index) {
+            <div class="source-fields">
+              <div class="field">
+                <label [for]="'setup-source-name-' + index">{{
+                  'KZ.ADDON_NAME' | translate
+                }}</label>
+                <input
+                  pInputText
+                  [id]="'setup-source-name-' + index"
+                  [(ngModel)]="source.name"
+                  placeholder="AIOStreams · TorBox"
+                />
+                <small class="hint">{{ 'KZ.ADDON_NAME_HELP' | translate }}</small>
+              </div>
+
+              <div class="field">
+                <label [for]="'setup-source-' + index">{{ 'KZ.MANIFEST_URL' | translate }}</label>
+                <input
+                  pInputText
+                  [id]="'setup-source-' + index"
+                  [(ngModel)]="source.manifestUrl"
+                  placeholder="https://…/manifest.json"
+                  autocomplete="off"
+                  [attr.aria-describedby]="'setup-source-error-' + index"
+                  [attr.aria-invalid]="!!errors()['search.' + index + '.manifestUrl']"
+                />
+              </div>
+
+              @if (source.manifestUrl) {
+                <label class="inline-choice"
+                  ><input type="checkbox" [(ngModel)]="source.enabled" />{{
+                    'KZ.ENABLED' | translate
+                  }}</label
+                >
+              }
+              @if (errors()['search.' + index + '.manifestUrl']; as message) {
+                <p [id]="'setup-source-error-' + index" role="alert" class="error">
+                  {{ message | translate }}
+                </p>
+              }
+              <p-button
+                [label]="'KZ.REMOVE_ADDON' | translate"
+                icon="pi pi-trash"
+                severity="danger"
+                [outlined]="true"
+                (onClick)="removeSource(index)"
+                [disabled]="busy()"
+              />
+            </div>
+          }
+          <p-button
+            [label]="'KZ.ADD_ADDON' | translate"
+            icon="pi pi-plus"
+            severity="secondary"
+            [outlined]="true"
+            (onClick)="addSource()"
+            [disabled]="busy()"
+          />
+          <p class="hint">{{ 'KZ.MANIFEST_URL_HELP' | translate }}</p>
+          <app-stream-badge-fields
+            prefix="setup"
+            [value]="value.settings.streamBadgeJson ?? ''"
+            (valueChange)="value.settings.streamBadgeJson = $event"
+            [defaultValue]="defaultBadges"
+            [disabled]="busy()"
+          />
+        }
+        @if (step() === 2) {
+          <app-storage-fields
+            [organization]="value.settings.organization"
+            prefix="setup"
+            (changed)="refreshPreviews()"
+          />
+          <p class="hint">{{ 'KZ.PLACEHOLDERS' | translate }}</p>
+          <p>{{ 'KZ.ORIGINAL_FILENAME_HELP' | translate }}</p>
+          <div class="naming-example">
+            <span>{{ 'KZ.NAMING_EXAMPLE' | translate }}</span>
+            @for (category of ['MOVIE', 'SERIES', 'ANIME']; track category) {
+              @if (previews()[category]; as path) {
+                <strong>{{ 'KZ.CATEGORY_' + category | translate }}</strong>
+                <code>{{ path }}</code>
+              }
+            }
+          </div>
+          <h3>{{ 'KZ.TRANSFER_SETTINGS' | translate }}</h3>
+          <app-transfer-fields [settings]="value.settings" prefix="setup-transfer" />
+        }
+        @if (step() === 3) {
+          <div class="inline-choice">
+            <p-toggleswitch
+              inputId="setup-jellyfin"
+              [(ngModel)]="value.settings.jellyfin.enabled"
+            /><label for="setup-jellyfin">{{ 'KZ.JELLYFIN_OPTIONAL' | translate }}</label>
+          </div>
+          @if (value.settings.jellyfin.enabled) {
+            <div class="field">
+              <label for="setup-jellyfin-url">{{ 'KZ.SERVER_URL' | translate }}</label>
+              <input
+                pInputText
+                id="setup-jellyfin-url"
+                [(ngModel)]="value.settings.jellyfin.url"
+                (ngModelChange)="clearConnectionTest('JELLYFIN')"
+              />
+            </div>
+            <div class="field">
+              <label for="setup-jellyfin-token">{{ 'KZ.API_TOKEN' | translate }}</label>
+              <input
+                pInputText
+                id="setup-jellyfin-token"
+                type="password"
+                [(ngModel)]="value.settings.jellyfin.token"
+                (ngModelChange)="clearConnectionTest('JELLYFIN')"
+                autocomplete="new-password"
+                [attr.aria-describedby]="
+                  connectionTests()['JELLYFIN'] ? 'setup-test-result-JELLYFIN' : null
+                "
+              />
+              <p-button
+                [label]="'KZ.TEST_CONNECTION' | translate"
+                [ariaLabel]="('KZ.TEST_CONNECTION' | translate) + ' Jellyfin'"
+                icon="pi pi-check-circle"
+                severity="secondary"
+                (onClick)="testJellyfin()"
+                [loading]="testingConnection() === 'JELLYFIN'"
+                [disabled]="
+                  busy() ||
+                  !value.settings.jellyfin.url?.trim() ||
+                  !value.settings.jellyfin.token?.trim()
+                "
+              />
+              @if (connectionTests()['JELLYFIN']; as result) {
+                <p
+                  id="setup-test-result-JELLYFIN"
+                  [attr.role]="result.ok ? 'status' : 'alert'"
+                  [class.error]="!result.ok"
+                  [class.hint]="result.ok"
+                >
+                  {{ result.message | translate }}
+                </p>
+              }
+            </div>
+          }
+        }
+      </fieldset>
+      <footer class="wizard-footer">
+        @if (step() === steps.length - 1) {
+          <p-button
+            [label]="'KZ.SAVE_COMPLETE_SETUP' | translate"
+            icon="pi pi-check"
+            (onClick)="complete()"
+            [loading]="busy() && !testingConnection()"
+            [disabled]="busy()"
+          />
+        } @else {
+          <p-button
+            [label]="'KZ.NEXT_STEP' | translate"
+            icon="pi pi-arrow-right"
+            iconPos="right"
+            (onClick)="advance()"
+            [loading]="busy() && !testingConnection()"
+            [disabled]="busy()"
+          />
+        }
+      </footer>
+    </section>
+  } @else if (busy()) {
+    <p role="status">{{ 'KZ.LOADING' | translate }}</p>
+  }
+</main>

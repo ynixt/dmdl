@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <bytecodeTargetLevel>
+      <module name="dmdl" target="25" />
+      <module name="dmdl.integrationTest" target="25" />
+      <module name="dmdl.main" target="25" />
+      <module name="dmdl.test" target="25" />
+      <module name="kaizoku-debrid" target="25" />
+      <module name="kaizoku-debrid.integrationTest" target="25" />
+      <module name="kaizoku-debrid.main" target="25" />
+      <module name="kaizoku-debrid.test" target="25" />
+      <module name="kaizokustream" target="25" />
+      <module name="kaizokustream.integrationTest" target="25" />
+      <module name="kaizokustream.main" target="25" />
+      <module name="kaizokustream.test" target="25" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="dmdl" options="-parameters" />
+      <module name="dmdl.integrationTest" options="-parameters" />
+      <module name="dmdl.main" options="-parameters" />
+      <module name="dmdl.test" options="-parameters" />
+      <module name="kaizokustream" options="-parameters" />
+      <module name="kaizokustream.integrationTest" options="-parameters" />
+      <module name="kaizokustream.main" options="-parameters" />
+      <module name="kaizokustream.test" options="-parameters" />
+    </option>
+  </component>
+</project>

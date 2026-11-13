@@ -1,0 +1,92 @@
+<div class="page">
+  <h1>{{ 'KZ.DISCOVERY' | translate }}</h1>
+  @if (error()) {
+    <p role="alert" class="error">{{ error() | translate }}</p>
+  }
+  <section class="panel form-row">
+    <div class="field">
+      <label for="catalog">{{ 'KZ.CATALOG' | translate }}</label>
+      <p-select inputId="catalog" [options]="catalogs" optionLabel="name" [(ngModel)]="catalog" />
+    </div>
+    <div class="field search-query">
+      <label for="query">{{ 'KZ.TITLE_SEARCH' | translate }}</label>
+      <input pInputText id="query" [(ngModel)]="query" (keydown.enter)="search()" />
+    </div>
+    <p-button
+      [label]="'KZ.SEARCH' | translate"
+      icon="pi pi-search"
+      (onClick)="search()"
+      [loading]="busy()"
+      [disabled]="!catalog || !query.trim()"
+    />
+  </section>
+  <div
+    class="discovery-layout"
+    [class.has-details]="!!details()"
+    [style.--result-row-height]="resultRowHeight() === null ? null : resultRowHeight() + 'px'"
+  >
+    <div class="cards">
+      @for (item of results(); track item.identity.contentId) {
+        <button
+          #resultCard
+          class="panel media-card"
+          [disabled]="busy()"
+          (click)="open(item)"
+          [class.selected]="details()?.identity?.contentId === item.identity.contentId"
+          [attr.aria-pressed]="details()?.identity?.contentId === item.identity.contentId"
+        >
+          @if (item.posterUrl) {
+            <img [src]="item.posterUrl" [alt]="item.title" loading="lazy" />
+          }
+          <strong>{{ item.title }}</strong
+          ><span>{{ item.year }}</span>
+        </button>
+      } @empty {
+        @if (!busy()) {
+          <p>{{ 'KZ.SEARCH_PROMPT' | translate }}</p>
+        }
+      }
+    </div>
+    @if (details(); as item) {
+      <section #detailsPanel class="panel details-panel">
+        <h2>
+          {{ item.title }}
+          @if (item.year) {
+            ({{ item.year }})
+          }
+        </h2>
+        <p>{{ item.description }}</p>
+        @if (category !== 'MOVIE') {
+          <div class="row">
+            <label for="category">{{ 'KZ.CATEGORY' | translate }}</label
+            ><p-select
+              inputId="category"
+              [options]="episodeCategories"
+              [(ngModel)]="category"
+              (ngModelChange)="changeCategory()"
+            />
+          </div>
+          <h3>{{ 'KZ.ONE_EPISODE' | translate }}</h3>
+          <div class="episode-list">
+            @for (episode of item.videos; track episode.id) {
+              <button
+                class="choice"
+                [class.selected]="video?.id === episode.id"
+                (click)="selectEpisode(episode)"
+              >
+                S{{ episode.season }} E{{ episode.episode }} — {{ episode.title }}
+              </button>
+            } @empty {
+              <p>{{ 'KZ.NO_EPISODES' | translate }}</p>
+            }
+          </div>
+        }
+        <p-button
+          [label]="'KZ.FIND_RELEASES' | translate"
+          (onClick)="findReleases()"
+          [disabled]="!content() || busy()"
+        />
+      </section>
+    }
+  </div>
+</div>

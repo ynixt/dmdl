@@ -1,0 +1,23 @@
+meta {
+  name: Test external Jellyfin
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/settings/jellyfin/test
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+{
+  "enabled": true,
+  "url": "{{jellyfinUrl}}",
+  "token": "{{jellyfinToken}}"
+}
+}

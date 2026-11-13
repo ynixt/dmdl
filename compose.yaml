@@ -1,0 +1,45 @@
+name: dmdl
+services:
+  dmdl:
+    # backend + frontend (nginx) + aria2 in a single container
+    build: .
+    image: dmdl:local
+    container_name: dmdl
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      APP_REDIS_HOST: redis
+      APP_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      APP_SESSION_TIMEOUT: ${APP_SESSION_TIMEOUT:-30d}
+    ports:
+      - ${DMDL_PORT:-8181}:8080
+    volumes:
+      # SQLite database at /data/dmdl.db, aria2 session/config at /data/aria2
+      - application_data:/data
+      - ${APP_MEDIA_PATH:-./media}:/media
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # aria2 RPC + backend readiness + nginx
+      test: [CMD, /usr/local/bin/dmdl-healthcheck]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+  redis:
+    image: redis:8.10.3-alpine
+    restart: unless-stopped
+    command: [redis-server, --requirepass, "${REDIS_PASSWORD}", --appendonly, "yes"]
+    volumes:
+      - redis_data:/data
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set (see .env.example)}
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  application_data:
+  redis_data:

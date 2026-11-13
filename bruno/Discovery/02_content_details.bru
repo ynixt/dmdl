@@ -1,0 +1,24 @@
+meta {
+  name: Content details
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/discovery/details
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+{
+  "sourceId": "{{metadataSourceId}}",
+  "sourceRevision": 1,
+  "resourceType": "movie",
+  "contentId": "{{contentId}}"
+}
+}

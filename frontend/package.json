@@ -1,0 +1,63 @@
+{
+  "name": "dmdl",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "lint": "ng lint",
+    "lint:fix": "ng lint --fix",
+    "prettier:fix": "prettier --write .",
+    "prettier": "prettier --check ."
+  },
+  "private": true,
+  "overrides": {
+    "minimatch": "^11.0.5",
+    "glob": "^14.0.4"
+  },
+  "packageManager": "npm@12.2.2",
+  "dependencies": {
+    "@angular/cdk": "21.2.14",
+    "@angular/common": "~21.2.26",
+    "@angular/compiler": "~21.2.26",
+    "@angular/core": "~21.2.26",
+    "@angular/forms": "~21.2.26",
+    "@angular/platform-browser": "~21.2.26",
+    "@angular/router": "~21.2.26",
+    "@ngx-translate/core": "^18.1.0",
+    "@ngx-translate/http-loader": "^18.1.0",
+    "@primeuix/themes": "2.0.3",
+    "primeicons": "7.0.0",
+    "primeng": "21.1.10",
+    "rxjs": "~7.8.2",
+    "tslib": "^2.9.1"
+  },
+  "devDependencies": {
+    "@angular/build": "~21.2.29",
+    "@angular/cli": "~21.2.29",
+    "@angular/compiler-cli": "~21.2.26",
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/postcss": "4.3.5",
+    "angular-eslint": "~21.4.0",
+    "eslint": "^10.14.0",
+    "jsdom": "^31.0.0",
+    "postcss": "^8.5.32",
+    "prettier": "^3.9.10",
+    "tailwindcss": "4.3.5",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "8.72.2",
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0",
+    "npm": ">=12.2.2"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "lmdb@3.5.1": true,
+    "msgpackr-extract@3.0.7": true,
+    "esbuild@0.28.1": true
+  }
+}

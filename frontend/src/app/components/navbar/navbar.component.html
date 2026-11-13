@@ -1,0 +1,24 @@
+<p-toolbar>
+  <ng-template #start
+    ><a routerLink="/discovery" class="font-bold text-xl">Debrid Media Downloader</a></ng-template
+  >
+  <ng-template #end>
+    @if (auth.isAuthenticated()) {
+      <nav
+        class="flex flex-wrap gap-4 items-center"
+        [attr.aria-label]="'KZ.NAVIGATION' | translate"
+      >
+        @if (auth.currentOnboardingCompleted() === true) {
+          <a routerLink="/discovery" routerLinkActive="font-bold">{{
+            'KZ.DISCOVERY' | translate
+          }}</a>
+          <a routerLink="/downloads" routerLinkActive="font-bold">{{
+            'KZ.DOWNLOADS' | translate
+          }}</a>
+          <a routerLink="/settings" routerLinkActive="font-bold">{{ 'KZ.SETTINGS' | translate }}</a>
+        }
+        <p-button [label]="'KZ.LOGOUT' | translate" severity="secondary" (onClick)="logout()" />
+      </nav>
+    }
+  </ng-template>
+</p-toolbar>

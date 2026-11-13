@@ -1,0 +1,67 @@
+<section class="login-page">
+  <p-card class="login-card">
+    <ng-template #header>
+      <div class="px-6 pt-6">
+        <h1 class="m-0 text-xl font-semibold">{{ 'PAGES.LOGIN.TITLE' | translate }}</h1>
+        <p class="mb-0 mt-1 opacity-70">{{ 'PAGES.LOGIN.SUBTITLE' | translate }}</p>
+      </div>
+    </ng-template>
+    <form [formGroup]="form" class="mt-2 grid gap-4" (ngSubmit)="submit()">
+      @if (noticeKey) {
+        <p-message severity="success">{{ noticeKey | translate }}</p-message>
+      }
+      <label class="grid gap-2">
+        <span>{{ 'PAGES.LOGIN.FORM.USERNAME.LABEL' | translate }}</span>
+        <input
+          pInputText
+          autocomplete="username"
+          formControlName="username"
+          [placeholder]="'PAGES.LOGIN.FORM.USERNAME.PLACEHOLDER' | translate"
+          [attr.aria-invalid]="form.controls.username.touched && form.controls.username.invalid"
+        />
+        @if (form.controls.username.touched && form.controls.username.hasError('required')) {
+          <small class="text-[var(--app-error)]">
+            {{ 'PAGES.LOGIN.FORM.USERNAME.REQUIRED' | translate }}
+          </small>
+        }
+      </label>
+
+      <label class="grid gap-2">
+        <span>{{ 'PAGES.LOGIN.FORM.PASSWORD.LABEL' | translate }}</span>
+        <input
+          pInputText
+          autocomplete="current-password"
+          formControlName="password"
+          type="password"
+          [placeholder]="'PAGES.LOGIN.FORM.PASSWORD.PLACEHOLDER' | translate"
+          [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid"
+        />
+        @if (form.controls.password.touched && form.controls.password.hasError('required')) {
+          <small class="text-[var(--app-error)]">
+            {{ 'PAGES.LOGIN.FORM.PASSWORD.REQUIRED' | translate }}
+          </small>
+        }
+      </label>
+
+      @if (errorKey()) {
+        <p-message severity="error">{{ errorKey()! | translate }}</p-message>
+      }
+
+      <button
+        pButton
+        class="inline-flex min-h-11 items-center justify-center gap-3"
+        type="submit"
+        [disabled]="form.invalid || isSubmitting()"
+      >
+        @if (isSubmitting()) {
+          <p-progress-spinner
+            [attr.aria-label]="'COMMON.LOADING' | translate"
+            [style]="{ width: '18px', height: '18px' }"
+            strokeWidth="7"
+          />
+        }
+        <span>{{ 'PAGES.LOGIN.FORM.SUBMIT' | translate }}</span>
+      </button>
+    </form>
+  </p-card>
+</section>

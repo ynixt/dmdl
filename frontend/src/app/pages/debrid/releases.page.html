@@ -1,0 +1,164 @@
+<main class="page releases-page" [style.--download-bar-height]="downloadBarHeight() + 'px'">
+  <header class="release-heading">
+    <a
+      [routerLink]="['/discovery']"
+      [queryParams]="backParams"
+      [state]="{ discovery: discoveryState }"
+      class="back-link"
+      ><i class="pi pi-arrow-left" aria-hidden="true"></i
+      >{{ 'KZ.BACK_TO_DISCOVERY' | translate }}</a
+    >
+    <div class="row">
+      <div class="compact-stack release-context">
+        <h1>{{ selectedContent?.title ?? ('KZ.RELEASES' | translate) }}</h1>
+        @if (selectedContent; as content) {
+          <p class="muted">
+            {{ content.year }}
+            @if (content.category !== 'MOVIE') {
+              · S{{ content.season }} E{{ content.episode }} · {{ content.episodeTitle }}
+            }
+          </p>
+        }
+      </div>
+      <p-button
+        [label]="'KZ.RELOAD_RELEASES' | translate"
+        icon="pi pi-refresh"
+        (onClick)="findReleases()"
+        [loading]="busy()"
+        [disabled]="busy() || !selectedContent"
+      />
+    </div>
+  </header>
+  @if (sources.length > 1) {
+    <div class="field">
+      <label for="release-source">{{ 'KZ.RELEASE_SOURCE' | translate }}</label>
+      <p-select
+        inputId="release-source"
+        [options]="sources"
+        optionLabel="name"
+        optionValue="id"
+        [ngModel]="addonId"
+        (ngModelChange)="selectSource($event)"
+        [disabled]="busy()"
+      />
+    </div>
+  }
+  @if (error()) {
+    <p role="alert" class="error">{{ error() | translate }}</p>
+  }
+  @if (busy()) {
+    <div class="release-loading" role="status" aria-live="polite" aria-busy="true">
+      <p-progress-spinner aria-hidden="true" strokeWidth="4" />
+      <span>{{ 'KZ.LOADING' | translate }}</span>
+    </div>
+  }
+  @if (result(); as page) {
+    <p-paginator
+      [rows]="20"
+      [first]="(page.page - 1) * 20"
+      [totalRecords]="page.total"
+      [alwaysShow]="false"
+      [showCurrentPageReport]="true"
+      [currentPageReportTemplate]="'KZ.RELEASE_PAGE_REPORT' | translate"
+      (onPageChange)="changePage(($event.page ?? 0) + 1)"
+    />
+  }
+  @for (group of groups(); track group.addonId) {
+    <section class="panel">
+      @if (sources.length === 1) {
+        <h2>{{ group.addonName }}</h2>
+      }
+      @if (group.outcome !== 'SUCCESS') {
+        <p>{{ 'KZ.SOURCE_' + group.outcome | translate }}</p>
+      }
+      @if (group.message) {
+        <p class="muted">{{ group.message }}</p>
+      }
+      @for (item of group.releases; track $index) {
+        <button
+          class="choice release"
+          [class.selected]="release === item"
+          [attr.aria-pressed]="release === item"
+          (click)="selectRelease(item)"
+          (dblclick)="downloadRelease(item)"
+        >
+          <span class="compact-stack"
+            ><span><app-flag-text [text]="item.title" /></span
+            ><app-stream-badges [badges]="item.badges ?? []"
+          /></span>
+          <span class="compact-stack release-availability">
+            @if (item.provenance.boundProvider) {
+              <small>{{ item.provenance.boundProvider }}</small>
+            }
+            <span class="cache-badge" [class.cached]="item.cacheStatus === 'CACHED'">
+              <i
+                [class]="
+                  item.cacheStatus === 'CACHED'
+                    ? 'pi pi-bolt'
+                    : item.cacheStatus === 'UNCACHED'
+                      ? 'pi pi-clock'
+                      : 'pi pi-question-circle'
+                "
+                aria-hidden="true"
+              ></i>
+              {{ 'KZ.DEBRID_CACHE_' + (item.cacheStatus ?? 'UNKNOWN') | translate }}
+            </span>
+          </span>
+        </button>
+      }
+    </section>
+  }
+  @if (result(); as page) {
+    <p-paginator
+      [rows]="20"
+      [first]="(page.page - 1) * 20"
+      [totalRecords]="page.total"
+      [alwaysShow]="false"
+      (onPageChange)="changePage(($event.page ?? 0) + 1)"
+    />
+  }
+  @if (release) {
+    <section #downloadBar class="download-bar">
+      <div class="download-bar-content">
+        <div class="download-controls">
+          <div class="field">
+            <label for="download-destination">{{ 'KZ.DESTINATION' | translate }}</label>
+            <p-select
+              inputId="download-destination"
+              [options]="destinations()"
+              optionLabel="name"
+              optionValue="id"
+              [(ngModel)]="destinationId"
+              appendTo="body"
+              [panelStyle]="{ maxWidth: 'calc(100vw - 2.5rem)' }"
+            >
+              <ng-template #item let-destination>
+                <div class="compact-stack destination-option">
+                  <strong>{{ destination.name }}</strong
+                  ><small class="path">{{ destination.path }}</small>
+                </div>
+              </ng-template>
+              <ng-template #selectedItem let-destination>
+                <span
+                  class="selected-destination"
+                  [title]="destination.name + ' · ' + destination.path"
+                  >{{ destination.name }} · {{ destination.path }}</span
+                >
+              </ng-template>
+            </p-select>
+          </div>
+          <p-button
+            [label]="'KZ.DOWNLOAD' | translate"
+            icon="pi pi-download"
+            (onClick)="submit()"
+            [loading]="busy()"
+            [disabled]="busy() || !destinationId"
+          />
+        </div>
+        @if (!destinations().length) {
+          <p class="hint">{{ 'KZ.CONFIGURE_CATEGORY_DESTINATION' | translate }}</p>
+        }
+      </div>
+    </section>
+  }
+</main>
