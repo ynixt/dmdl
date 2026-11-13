@@ -122,7 +122,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:1.2.3`, or use `edge` for the latest `master` build.
+Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.1`, or use `edge` for the latest `master` build.
 
 ### Environment variables
 
