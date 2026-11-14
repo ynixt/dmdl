@@ -1,6 +1,7 @@
 import { Component, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
+import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
@@ -8,7 +9,14 @@ import { Settings } from '../../services/debrid-api.service';
 
 @Component({
   selector: 'app-transfer-fields',
-  imports: [FormsModule, TranslatePipe, InputTextModule, SelectModule, ToggleSwitchModule],
+  imports: [
+    FormsModule,
+    TranslatePipe,
+    CheckboxModule,
+    InputTextModule,
+    SelectModule,
+    ToggleSwitchModule,
+  ],
   styleUrl: './debrid.scss',
   template: `
     @let config = settings();
@@ -72,21 +80,37 @@ import { Settings } from '../../services/debrid-api.service';
           />
         </div>
       </div>
-      <div class="form-row">
-        <div class="field">
-          <label [for]="prefix() + '-lowest-speed'"
-            >{{ 'KZ.LOWEST_SPEED' | translate }} (KiB/s)</label
-          >
-          <input
-            pInputText
-            [id]="prefix() + '-lowest-speed'"
-            type="number"
-            min="0"
-            max="1048576"
-            [ngModel]="config.transfer.lowestSpeedLimitKib ?? 50"
-            (ngModelChange)="config.transfer.lowestSpeedLimitKib = $event"
+      <div class="field">
+        <div class="row">
+          <p-checkbox
+            [inputId]="prefix() + '-lowest-speed-enabled'"
+            [binary]="true"
+            [ngModel]="config.transfer.lowestSpeedLimitEnabled ?? false"
+            (ngModelChange)="config.transfer.lowestSpeedLimitEnabled = $event"
           />
+          <label [for]="prefix() + '-lowest-speed-enabled'">{{
+            'KZ.LOWEST_SPEED_ENABLED' | translate
+          }}</label>
         </div>
+        <small class="hint">{{ 'KZ.LOWEST_SPEED_ENABLED_HINT' | translate }}</small>
+      </div>
+      <div class="form-row">
+        @if (config.transfer.lowestSpeedLimitEnabled) {
+          <div class="field">
+            <label [for]="prefix() + '-lowest-speed'"
+              >{{ 'KZ.LOWEST_SPEED' | translate }} (KiB/s)</label
+            >
+            <input
+              pInputText
+              [id]="prefix() + '-lowest-speed'"
+              type="number"
+              min="1"
+              max="1048576"
+              [ngModel]="config.transfer.lowestSpeedLimitKib ?? 50"
+              (ngModelChange)="config.transfer.lowestSpeedLimitKib = $event"
+            />
+          </div>
+        }
         <div class="field">
           <label [for]="prefix() + '-disk-cache'">{{ 'KZ.DISK_CACHE' | translate }} (MiB)</label>
           <input

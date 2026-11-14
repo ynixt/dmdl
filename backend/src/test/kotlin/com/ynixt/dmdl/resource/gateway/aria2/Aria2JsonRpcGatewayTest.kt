@@ -36,6 +36,7 @@ class Aria2JsonRpcGatewayTest {
                     retryWaitSeconds = 7,
                     fileAllocation = Aria2FileAllocation.NONE,
                     ipv6Enabled = false,
+                    lowestSpeedLimitEnabled = true,
                     lowestSpeedLimitKib = 100,
                     timeoutSeconds = 45,
                     maxFileNotFound = 3,
@@ -53,6 +54,46 @@ class Aria2JsonRpcGatewayTest {
         assertTrue(requestBody.contains("\"lowest-speed-limit\":\"100K\""))
         assertTrue(requestBody.contains("\"timeout\":\"45\""))
         assertTrue(requestBody.contains("\"max-file-not-found\":\"3\""))
+    }
+
+    @Test
+    fun `sends no per-connection minimum speed when the limit is disabled`() {
+        var requestBody = ""
+        withServer(
+            responder = { body ->
+                requestBody = body
+                """{"jsonrpc":"2.0","id":"1","result":"abc"}"""
+            },
+        ) { gateway ->
+            gateway.addUri(
+                "https://example.test/video",
+                "abc",
+                "/downloads/abc",
+                Aria2TransferOptions(lowestSpeedLimitEnabled = false, lowestSpeedLimitKib = 80),
+            )
+        }
+
+        assertTrue(requestBody.contains("aria2.addUri"))
+        assertTrue(requestBody.contains("\"lowest-speed-limit\":\"0\""))
+        assertTrue(!requestBody.contains("80K"))
+    }
+
+    @Test
+    fun `sends the configured per-connection minimum speed when the limit is enabled`() {
+        val requests = mutableListOf<String>()
+        withServer(
+            responder = { body ->
+                requests += body
+                """{"jsonrpc":"2.0","id":"1","result":"OK"}"""
+            },
+        ) { gateway ->
+            val options = Aria2TransferOptions(lowestSpeedLimitEnabled = true, lowestSpeedLimitKib = 80)
+            gateway.addUri("https://example.test/video", "abc", "/downloads/abc", options)
+            gateway.changeOptions("abc", options)
+        }
+
+        assertTrue(requests.any { it.contains("aria2.addUri") && it.contains("\"lowest-speed-limit\":\"80K\"") })
+        assertTrue(requests.any { it.contains("aria2.changeOption") && it.contains("\"lowest-speed-limit\":\"80K\"") })
     }
 
     @Test

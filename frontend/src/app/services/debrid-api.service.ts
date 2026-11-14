@@ -146,6 +146,7 @@ export interface Transfer {
   retryWaitSeconds: number;
   fileAllocation: string;
   ipv6Enabled: boolean;
+  lowestSpeedLimitEnabled?: boolean;
   lowestSpeedLimitKib?: number;
   diskCacheMib?: number;
   timeoutSeconds?: number;

@@ -90,7 +90,15 @@ describe('Onboarding wizard', () => {
     ];
     expect(fixture.nativeElement.querySelectorAll('.wizard-footer button')).toHaveLength(1);
     expect(fixture.nativeElement.querySelector('#setup-metadata')).not.toBeNull();
-    for (let index = 0; index < 3; index++) await page.advance();
+    for (let index = 0; index < 2; index++) await page.advance();
+    expect(page.step()).toBe(2);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(
+      fixture.nativeElement.querySelector('#setup-transfer-lowest-speed-enabled'),
+    ).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#setup-transfer-lowest-speed')).toBeNull();
+    await page.advance();
     expect(page.step()).toBe(3);
     expect(
       api.post.mock.calls.every(
