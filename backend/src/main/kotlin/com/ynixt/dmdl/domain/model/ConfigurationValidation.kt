@@ -54,7 +54,8 @@ class ConfigurationValidation(
         require(
             transfer.split in 1..16 && transfer.maxConnectionPerServer in 1..16 && transfer.minSplitSizeMib in 1..1024 &&
                 transfer.maxTries in 0..100 &&
-                transfer.retryWaitSeconds in 0..600 && transfer.lowestSpeedLimitKib in 0..1048576 &&
+                transfer.retryWaitSeconds in 0..600 &&
+                (!transfer.lowestSpeedLimitEnabled || transfer.lowestSpeedLimitKib in 1..1048576) &&
                 transfer.diskCacheMib in 0..4096 && transfer.timeoutSeconds in 1..600 &&
                 transfer.maxFileNotFound in 0..100 && transfer.maxConcurrentPerDebrid in 1..settings.maxConcurrentDownloads,
         ) { "Invalid aria2 transfer settings" }

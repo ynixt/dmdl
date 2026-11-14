@@ -23,7 +23,7 @@ class ConfigurationValidationTest {
         listOf(
             defaults.copy(maxConnectionPerServer = 17),
             defaults.copy(timeoutSeconds = 0),
-            defaults.copy(lowestSpeedLimitKib = -1),
+            defaults.copy(lowestSpeedLimitEnabled = true, lowestSpeedLimitKib = -1),
             defaults.copy(diskCacheMib = 4097),
             defaults.copy(maxFileNotFound = -1),
             defaults.copy(maxConcurrentPerDebrid = 2),
@@ -34,6 +34,35 @@ class ConfigurationValidationTest {
             settings.copy(maxConcurrentDownloads = 2, transfer = defaults.copy(maxConcurrentPerDebrid = 2)),
             storageCheck = {},
         )
+    }
+
+    @Test
+    fun `minimum connection speed is range checked only when enabled`() {
+        val organization =
+            OrganizationSettings(
+                categories =
+                    OrganizationSettings.defaults().mapValues { (_, category) ->
+                        category.copy(destinations = emptyList(), defaultDestinationId = null)
+                    },
+            )
+        val settings = ApplicationSettings("test", "hash", organization = organization)
+        val defaults = Aria2TransferOptions()
+
+        listOf(0, 1048577).forEach { kib ->
+            assertFailsWith<IllegalArgumentException> {
+                validation.settings(
+                    settings.copy(transfer = defaults.copy(lowestSpeedLimitEnabled = true, lowestSpeedLimitKib = kib)),
+                    storageCheck = {},
+                )
+            }
+        }
+        listOf(
+            defaults.copy(lowestSpeedLimitEnabled = false, lowestSpeedLimitKib = 0),
+            defaults.copy(lowestSpeedLimitEnabled = false, lowestSpeedLimitKib = -1),
+            defaults.copy(lowestSpeedLimitEnabled = true, lowestSpeedLimitKib = 80),
+            defaults.copy(lowestSpeedLimitEnabled = true, lowestSpeedLimitKib = 1),
+            defaults.copy(lowestSpeedLimitEnabled = true, lowestSpeedLimitKib = 1048576),
+        ).forEach { valid -> validation.settings(settings.copy(transfer = valid), storageCheck = {}) }
     }
 
     private val gateway = mockk<AddonGateway>()

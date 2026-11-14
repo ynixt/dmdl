@@ -237,7 +237,7 @@ class Aria2JsonRpcGateway(
             "max-connection-per-server" to maxConnectionPerServer.toString(),
             "min-split-size" to "${minSplitSizeMib}M",
             "disable-ipv6" to (!ipv6Enabled).toString(),
-            "lowest-speed-limit" to "${lowestSpeedLimitKib}K",
+            "lowest-speed-limit" to if (lowestSpeedLimitEnabled) "${lowestSpeedLimitKib}K" else "0",
             "timeout" to timeoutSeconds.toString(),
             "max-file-not-found" to maxFileNotFound.toString(),
         )
