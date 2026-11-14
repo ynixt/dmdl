@@ -92,6 +92,8 @@
     "DEBRID_CONCURRENCY_WARNING": "Downloads simultâneos no mesmo debrid podem violar a política do provedor. Verifique os limites da sua conta antes de aumentar este valor.",
     "CONNECTIONS_HELP": "Define max-connection-per-server e split com o mesmo valor, até 16 conexões.",
     "LOWEST_SPEED": "Velocidade mínima (lowest-speed-limit)",
+    "LOWEST_SPEED_ENABLED": "Exigir velocidade mínima por conexão",
+    "LOWEST_SPEED_ENABLED_HINT": "Conexões mais lentas que o mínimo são encerradas e não são substituídas, então o download pode ficar com menos conexões.",
     "DISK_CACHE": "Cache de disco (disk-cache)",
     "TIMEOUT": "Tempo limite (timeout)",
     "MAX_FILE_NOT_FOUND": "Limite de arquivo não encontrado (max-file-not-found)",

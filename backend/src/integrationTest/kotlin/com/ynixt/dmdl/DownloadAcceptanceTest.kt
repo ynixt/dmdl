@@ -530,10 +530,13 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
             val gid = active.execution.aria2Gid!!
             waitUntil { aria.findStatus(gid)?.state == Aria2TransferState.ACTIVE }
             val tuning = configuration.settings()!!
+            assertEquals(false, tuning.transfer.lowestSpeedLimitEnabled)
+            assertEquals("0", rpc("aria2.getOption", listOf(gid))["lowest-speed-limit"].asString())
             configuration.saveSettings(tuning.copy(transfer = tuning.transfer.copy(split = 6, maxConnectionPerServer = 2)))
             downloads.drain()
             assertEquals("2", rpc("aria2.getOption", listOf(gid))["split"].asString())
             assertEquals("2", rpc("aria2.getOption", listOf(gid))["max-connection-per-server"].asString())
+            assertEquals("0", rpc("aria2.getOption", listOf(gid))["lowest-speed-limit"].asString())
             val firstPause = downloads.control(active.id, active.execution.generation, DownloadControl.PAUSE)
             waitUntil { aria.findStatus(gid)?.state == Aria2TransferState.PAUSED }
             downloads.control(firstPause.id, firstPause.execution.generation, DownloadControl.RESUME)
