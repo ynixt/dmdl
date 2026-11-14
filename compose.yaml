@@ -11,6 +11,9 @@ services:
       DMDL_REDIS_HOST: redis
       DMDL_REDIS_PASSWORD: ${DMDL_REDIS_PASSWORD}
       DMDL_SESSION_TIMEOUT: ${DMDL_SESSION_TIMEOUT:-30d}
+      # Using a Redis where the dmdl user cannot run CONFIG (e.g. an ACL without @admin)?
+      # Set this to "none" and add "notify-keyspace-events Egx" to that Redis server's redis.conf.
+      # DMDL_REDIS_CONFIGURE_ACTION: none
     ports:
       - ${DMDL_PORT:-8080}:8080
     volumes:
