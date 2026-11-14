@@ -91,6 +91,10 @@
   flex-wrap: wrap;
   gap: 1rem;
 }
+/* Rows where a field has a hint below its input: align labels and inputs at the top. */
+.form-row.top-aligned {
+  align-items: flex-start;
+}
 .form-row > .field {
   flex: 1 1 12rem;
 }

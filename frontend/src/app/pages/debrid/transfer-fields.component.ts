@@ -54,7 +54,7 @@ import { Settings } from '../../services/debrid-api.service';
       @if (config.maxConcurrentDownloads > 1) {
         <p role="note" class="hint">{{ 'KZ.DEBRID_CONCURRENCY_WARNING' | translate }}</p>
       }
-      <div class="form-row">
+      <div class="form-row top-aligned">
         <div class="field">
           <label [for]="prefix() + '-connections'">{{ 'KZ.CONNECTIONS' | translate }}</label>
           <input
