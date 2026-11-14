@@ -14,6 +14,11 @@ services:
       # Using a Redis where the dmdl user cannot run CONFIG (e.g. an ACL without @admin)?
       # Set this to "none" and add "notify-keyspace-events Egx" to that Redis server's redis.conf.
       # DMDL_REDIS_CONFIGURE_ACTION: none
+      # aria2 log detail: debug, info, notice (default), warn or error.
+      # info and debug also log download URLs, and debrid links can carry tokens.
+      # DMDL_ARIA2_LOG_LEVEL: info
+      # Set to "true" to log one nginx access line per request (off by default).
+      # DMDL_NGINX_ACCESS_LOG: "true"
     ports:
       - ${DMDL_PORT:-8080}:8080
     volumes:
@@ -24,6 +29,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       # aria2 RPC + backend readiness + nginx
       test: [CMD, /usr/local/bin/dmdl-healthcheck]
@@ -39,6 +49,11 @@ services:
       - redis_data:/data
     environment:
       REDISCLI_AUTH: ${DMDL_REDIS_PASSWORD}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: [CMD, redis-cli, ping]
       interval: 5s
