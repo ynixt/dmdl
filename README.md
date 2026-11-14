@@ -93,6 +93,8 @@ docker compose up -d
 
 Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.5`, or use `edge` for the latest `master` build.
 
+The navbar shows which build is running: the release tag (such as `v0.0.5`) for releases, the short commit for `edge` builds, and `local` for images you built yourself without `make up`.
+
 ### Environment variables
 
 These go in `.env` and are used by the example `compose.yaml`:

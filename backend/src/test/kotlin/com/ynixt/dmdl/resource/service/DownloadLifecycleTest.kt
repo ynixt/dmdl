@@ -596,4 +596,79 @@ class DownloadLifecycleTest {
             assertEquals(4096, current.get().progress.totalBytes)
         }
     }
+
+    @Test
+    fun `submits series metadata episode with Anime destination and category`() {
+        val discovery = mockk<com.ynixt.dmdl.domain.service.DiscoveryService>()
+        val addon =
+            com.ynixt.dmdl.domain.model.AddonConfiguration(
+                UUID.randomUUID(),
+                1,
+                "https://example/manifest.json",
+                com.ynixt.dmdl.domain.model
+                    .AddonManifest("stream", "Stream", emptyList(), emptyList(), emptyList()),
+            )
+        val identity = ContentIdentity(UUID.randomUUID(), 1, "series", "tt123")
+        val metadata =
+            com.ynixt.dmdl.domain.model.MetadataDetails(
+                identity,
+                "Show",
+                videos =
+                    listOf(
+                        com.ynixt.dmdl.domain.model
+                            .MetadataVideo("ep", 2, 7, "Seven"),
+                    ),
+            )
+        val content =
+            ContentSnapshot(
+                identity.copy(videoId = "ep"),
+                MediaCategory.ANIME,
+                "Show",
+                season = 2,
+                episode = 7,
+                episodeTitle = "Seven",
+            )
+        val release = current.get().release.copy(provenance = ReleaseProvenance(addon.id, 1, addon.name, 0, 0))
+        val categories = OrganizationSettings.defaults(root.toString())
+        val destination = categories.getValue(MediaCategory.ANIME).destinations.single()
+        Files.createDirectories(Path.of(destination.path))
+        every { configuration.settings() } returns
+            ApplicationSettings(
+                "fixture",
+                "hash",
+                organization = OrganizationSettings(categories = categories),
+            )
+        every { configuration.searchAddons() } returns listOf(addon)
+        every { discovery.details(any(), false) } returns metadata
+        every { discovery.releases(content) } returns
+            listOf(
+                com.ynixt.dmdl.domain.model.ReleaseGroup(
+                    addon.id,
+                    addon.name,
+                    0,
+                    com.ynixt.dmdl.domain.model.SourceOutcome.SUCCESS,
+                    listOf(release),
+                ),
+            )
+        val service =
+            DownloadServiceImpl(
+                store,
+                configuration,
+                discovery,
+                aria,
+                finalizer,
+                mockk(relaxed = true),
+                progress,
+                speedHistory,
+                StorageProperties(root.toString()),
+                Aria2Properties(),
+            )
+        every { store.find(any()) } returns null
+        val submitted = service.submit(content, release, destination.id)
+        assertEquals(MediaCategory.ANIME, submitted.content.category)
+        assertEquals("series", submitted.content.identity.resourceType)
+        assertEquals(destination.id, submitted.organization.destinationId)
+        assertEquals(destination.path, submitted.organization.storageRoot)
+        verify(exactly = 1) { discovery.releases(content) }
+    }
 }

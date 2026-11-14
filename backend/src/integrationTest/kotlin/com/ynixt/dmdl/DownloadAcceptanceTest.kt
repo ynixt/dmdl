@@ -111,9 +111,14 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         val details = discovery.details(identity)
         discovery.details(identity.copy(mappedIds = mapOf("tmdb" to "1396")))
         assertEquals(beforeDetails + 1, calls.count { it.contains("/meta/") })
-        val metadataKey = redisTemplate.keys("dmdl:meta-v2:${metadata.id}:${metadata.revision}:*").single()
+        val metadataKey = redisTemplate.keys("dmdl:meta-v5:${metadata.id}:${metadata.revision}:*").single()
         assertTrue(redisTemplate.getExpire(metadataKey) in 259190..259200)
         assertTrue(redisTemplate.opsForValue().get(metadataKey)!!.contains(details.title))
+        discovery.details(identity, true)
+        assertEquals(beforeDetails + 2, calls.count { it.contains("/meta/") })
+        discovery.details(identity)
+        assertEquals(beforeDetails + 2, calls.count { it.contains("/meta/") })
+
         configuration.saveMetadata(
             metadata.copy(
                 manifestUrl = "${base()}/metadata-replacement/manifest.json",
@@ -138,7 +143,7 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
             false,
         )
         assertEquals(beforeReleases + 1, streamCalls())
-        val releaseKey = redisTemplate.keys("dmdl:releases-v4:${source.id}:${source.revision}:*").single()
+        val releaseKey = redisTemplate.keys("dmdl:releases-v5:${source.id}:${source.revision}:*").single()
         assertTrue(redisTemplate.getExpire(releaseKey) in 86390..86400)
         discovery.releasePage(content, source.id, 1, true)
         assertEquals(beforeReleases + 2, streamCalls())
@@ -393,7 +398,10 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         assertFalse(settings.body().contains("integration-password"))
         assertTrue(json.readTree(request("/api/setup").body())["ready"].asBoolean())
         assertEquals(400, request("/api/setup/complete", emptyMap<String, String>()).statusCode())
-        assertEquals(400, request("/api/addons/search", mapOf("manifestUrl" to "${base()}/metadata/manifest.json")).statusCode())
+        assertEquals(
+            400,
+            request("/api/addons/search", listOf(mapOf("manifestUrl" to "${base()}/metadata/manifest.json")), "PUT").statusCode(),
+        )
         val source = configuration.metadata()!!
         val search = discovery.search(DiscoveryQuery("movie", "custom-search", "Example"))
         assertEquals("opaque:movie", search.single().identity.contentId)
@@ -408,34 +416,47 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         assertTrue(replaced.title.startsWith("Replacement"))
         assertFalse(before.title == replaced.title)
         assertFailsWith<IllegalArgumentException> { discovery.details(before.identity) }
-        val existingAddonIds = configuration.searchAddons().map { it.id }.toSet()
+        val existing = configuration.searchAddons()
+        val existingAddonIds = existing.map { it.id }.toSet()
+
+        fun searchInput(addon: AddonConfiguration) =
+            mapOf(
+                "id" to addon.id,
+                "manifestUrl" to addon.manifestUrl,
+                "name" to addon.name,
+                "enabled" to addon.enabled,
+            )
         assertEquals(
             200,
             request(
                 "/api/addons/search",
-                mapOf(
-                    "manifestUrl" to "${base()}/fast/manifest.json?token=fixture-secret",
-                    "position" to 4,
-                ),
+                existing.map(::searchInput) + mapOf("manifestUrl" to "${base()}/fast/manifest.json?token=fixture-secret"),
+                "PUT",
             ).statusCode(),
         )
         val added = configuration.searchAddons().single { it.id !in existingAddonIds }
-        assertFalse(request("/api/addons").body().contains("fixture-secret"))
+        assertEquals(
+            added.manifestUrl,
+            json
+                .readTree(request("/api/addons").body())["search"]
+                .first { it["id"].asString() == added.id.toString() }["manifestUrl"]
+                .asString(),
+        )
         assertEquals(
             200,
             request(
-                "/api/addons/search/${added.id}",
-                mapOf("enabled" to false, "position" to 0),
+                "/api/addons/search",
+                configuration.searchAddons().map { searchInput(if (it.id == added.id) it.copy(enabled = false) else it) },
                 "PUT",
             ).statusCode(),
         )
         assertFalse(configuration.searchAddons().single { it.id == added.id }.enabled)
-        assertEquals(200, request("/api/addons/search/${added.id}", method = "DELETE").statusCode())
+        assertEquals(200, request("/api/addons/search", existing.map(::searchInput), "PUT").statusCode())
         val previewContent = content(MediaCategory.MOVIE)
-        val resolvedContent = request("/api/discovery/content?resourceType=movie&contentId=opaque%3Amovie")
+        val resolvedContent = request("/api/discovery/meta?kind=movie&contentId=opaque%3Amovie")
         assertEquals(200, resolvedContent.statusCode(), resolvedContent.body())
         val selectedSource = configuration.searchAddons().first { it.enabled }
-        val releasePage = request("/api/discovery/releases/page?addonId=${selectedSource.id}&page=1", json.readTree(resolvedContent.body()))
+        val releasePage = request("/api/discovery/releases/page?addonId=${selectedSource.id}&page=1", previewContent)
         assertEquals(200, releasePage.statusCode(), releasePage.body())
         val pageNode = json.readTree(releasePage.body())
         assertEquals(20, pageNode["pageSize"].asInt())

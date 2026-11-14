@@ -7,7 +7,8 @@ import com.ynixt.dmdl.domain.model.ContentSnapshot
 import com.ynixt.dmdl.domain.model.DiscoveryQuery
 import com.ynixt.dmdl.domain.model.DownloadControl
 import com.ynixt.dmdl.domain.model.DownloadStatusUpdate
-import com.ynixt.dmdl.domain.model.MediaCategory
+import com.ynixt.dmdl.domain.model.MediaKind
+import com.ynixt.dmdl.domain.model.MetadataDetails
 import com.ynixt.dmdl.domain.model.ReleaseGroup
 import com.ynixt.dmdl.domain.model.ReleasePage
 import com.ynixt.dmdl.domain.model.SpeedSample
@@ -62,21 +63,34 @@ class DownloadsController(
     @PostMapping("/discovery/search")
     fun search(
         @RequestBody query: DiscoveryQuery,
-    ) = discovery.search(query)
+        @RequestParam(defaultValue = "false") forceRefresh: Boolean = false,
+    ) = discovery.search(query, forceRefresh)
+
+    @GetMapping("/discovery/catalogs/{type}/{id}")
+    fun catalog(
+        @PathVariable type: String,
+        @PathVariable id: String,
+        @RequestParam(defaultValue = "0") skip: Int = 0,
+        @RequestParam(defaultValue = "false") forceRefresh: Boolean = false,
+        @RequestParam parameters: Map<String, String> = emptyMap(),
+    ) = discovery.catalog(type, id, skip, forceRefresh, parameters - setOf("skip", "forceRefresh"))
 
     @PostMapping("/discovery/details")
     fun details(
         @RequestBody identity: ContentIdentity,
     ) = discovery.details(identity)
 
-    @GetMapping("/discovery/content")
-    fun content(
-        @RequestParam resourceType: String,
+    @GetMapping("/discovery/meta")
+    fun meta(
+        @RequestParam kind: String,
         @RequestParam contentId: String,
-        @RequestParam(required = false) season: Int? = null,
-        @RequestParam(required = false) episode: Int? = null,
-        @RequestParam(required = false) category: MediaCategory? = null,
-    ) = discovery.content(resourceType, contentId, season, episode, category)
+        @RequestParam(defaultValue = "false") forceRefresh: Boolean = false,
+    ): MetadataDetails {
+        val mediaKind =
+            requireNotNull(MediaKind.entries.singleOrNull { it.name.equals(kind, ignoreCase = true) }) { "KZ.UNSUPPORTED_TYPE" }
+        require(contentId.isNotBlank()) { "KZ.UNSUPPORTED_TYPE" }
+        return discovery.lookup(mediaKind, contentId, forceRefresh)
+    }
 
     @PostMapping("/discovery/releases/page")
     fun releasePage(

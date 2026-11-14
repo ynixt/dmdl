@@ -3,7 +3,7 @@ import { authGuard } from './core/auth/auth.guard';
 import { guestGuard } from './core/auth/guest.guard';
 import { onboardingGuard } from './core/auth/onboarding.guard';
 import { registrationGuard } from './core/auth/registration.guard';
-import { ReleasesRoutePage } from './pages/debrid/releases-route.page';
+import { mediaShowRoutes } from './pages/debrid/media-show.routes';
 import { settingsLeaveGuard } from './pages/debrid/settings-leave.guard';
 
 export const routes: Routes = [
@@ -30,16 +30,26 @@ export const routes: Routes = [
       import('./pages/login/login.page').then((module) => module.LoginPageComponent),
   },
   {
-    path: 'discovery/releases/:addonId/:type/:id/:season/:episode',
-    title: 'KZ.RELEASES',
+    path: 'movie/:id',
+    title: 'KZ.DISCOVERY',
     canActivate: [authGuard, onboardingGuard],
-    component: ReleasesRoutePage,
+    loadComponent: () => import('./pages/debrid/movie.page').then((m) => m.MoviePage),
   },
+  ...mediaShowRoutes().map((route) =>
+    route.redirectTo !== undefined
+      ? route
+      : {
+          ...route,
+          title: 'KZ.DISCOVERY',
+          canActivate: [authGuard, onboardingGuard],
+        },
+  ),
+
   {
-    path: 'discovery/releases/:addonId/:type/:id',
-    title: 'KZ.RELEASES',
+    path: 'search',
+    title: 'KZ.SEARCH',
     canActivate: [authGuard, onboardingGuard],
-    component: ReleasesRoutePage,
+    loadComponent: () => import('./pages/debrid/search.page').then((module) => module.SearchPage),
   },
   {
     path: 'discovery',

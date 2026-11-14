@@ -7,6 +7,8 @@ build-frontend:
 	cd frontend && npm ci && npm run build
 
 up:
+	DMDL_APP_VERSION="$$(git describe --tags --exact-match 2>/dev/null)" \
+	DMDL_GIT_SHA="$$(git rev-parse HEAD)" \
 	docker compose -f compose.build.yaml up -d --build
 
 up-dev:

@@ -1,10 +1,16 @@
 # Builds dmdl from this checkout and runs it with its own Redis, for local testing.
 # Works without a .env file:  docker compose -f compose.build.yaml up -d --build   (or: make up)
 # Uses its own project name and volumes, so it never touches an installation started from compose.yaml.
+# `make up` also passes the current tag and commit (DMDL_APP_VERSION, DMDL_GIT_SHA), shown in the navbar;
+# without them the navbar shows "local".
 name: dmdl-local
 services:
   dmdl:
-    build: .
+    build:
+      context: .
+      args:
+        APP_VERSION: ${DMDL_APP_VERSION:-}
+        GIT_SHA: ${DMDL_GIT_SHA:-}
     image: dmdl:local
     stop_grace_period: 30s
     environment:

@@ -1,0 +1,16 @@
+meta {
+  name: Catalog items
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/discovery/catalogs/movie/{{catalogId}}?skip=0&forceRefresh=false
+  body: none
+  auth: none
+}
+
+params:query {
+  skip: 0
+  forceRefresh: false
+}

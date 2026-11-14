@@ -1,5 +1,6 @@
 package com.ynixt.dmdl.domain.gateway
 
+import com.ynixt.dmdl.domain.model.AddonCatalog
 import com.ynixt.dmdl.domain.model.AddonConfiguration
 import com.ynixt.dmdl.domain.model.AddonManifest
 import com.ynixt.dmdl.domain.model.ContentIdentity
@@ -10,6 +11,13 @@ import com.ynixt.dmdl.domain.model.ReleaseGroup
 
 interface AddonGateway {
     fun manifest(url: String): AddonManifest
+
+    fun catalog(
+        source: AddonConfiguration,
+        catalog: AddonCatalog,
+        skip: Int,
+        extras: Map<String, String> = emptyMap(),
+    ): List<MetadataDetails>
 
     fun search(
         source: AddonConfiguration,

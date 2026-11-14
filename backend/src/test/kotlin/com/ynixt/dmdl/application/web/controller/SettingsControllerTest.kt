@@ -22,10 +22,51 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class SettingsControllerTest {
+    @Test
+    fun `addon JSON exposes catalog browsing and paging flags`() {
+        metadata =
+            first.copy(
+                manifest =
+                    manifest.copy(
+                        catalogs =
+                            listOf(
+                                AddonCatalog(
+                                    "pages",
+                                    "movie",
+                                    "Pages",
+                                    true,
+                                    listOf(
+                                        com.ynixt.dmdl.domain.model
+                                            .AddonCatalogExtra("skip"),
+                                        com.ynixt.dmdl.domain.model
+                                            .AddonCatalogExtra("genre", true, listOf("Action", "Drama"), "Drama"),
+                                    ),
+                                ),
+                            ),
+                    ),
+            )
+        val mapper =
+            tools.jackson.databind.json.JsonMapper
+                .builder()
+                .addModule(
+                    tools.jackson.module.kotlin.KotlinModule
+                        .Builder()
+                        .build(),
+                ).build()
+        val response = mapper.readTree(mapper.writeValueAsString(controller.listAddons()))
+        val catalog = response["metadata"]["manifest"]["catalogs"][0]
+        assertEquals(true, catalog["browsable"].asBoolean())
+        assertEquals(true, catalog["pageable"].asBoolean())
+        assertEquals("Drama", catalog["extra"][1]["default"].asString())
+        assertEquals("Action", catalog["extra"][1]["options"][0].asString())
+    }
+
     private val store = mockk<ConfigurationStore>(relaxed = true)
     private val addons = mockk<AddonGateway>()
     private val jellyfin = mockk<JellyfinGateway>(relaxed = true)
-    private val controller = SettingsController(store, addons, jellyfin, StorageProperties(), mockk<FileFinalizer>(relaxed = true))
+    private val backfill = mockk<com.ynixt.dmdl.domain.service.MetadataManifestBackfill>()
+    private val controller =
+        SettingsController(store, addons, jellyfin, StorageProperties(), mockk<FileFinalizer>(relaxed = true), backfill)
     private val manifest =
         AddonManifest(
             "fixture",
@@ -43,6 +84,7 @@ class SettingsControllerTest {
     init {
         every { store.searchAddons() } answers { search }
         every { store.metadata() } answers { metadata }
+        every { backfill.current() } answers { metadata }
         every { store.settings() } answers { settings }
         every { store.replaceSearchAddons(any()) } answers { search = firstArg() }
         every { store.saveMetadata(any()) } answers { metadata = firstArg() }

@@ -46,6 +46,10 @@ class DiscoveryCache(
         val RESULTS_TTL: Duration = Duration.ofHours(24)
         val METADATA_TTL: Duration = Duration.ofDays(3)
 
+        /** A title does not stop being an anime; a missing Kitsu mapping may be added later. */
+        val KITSU_ANIME_TTL: Duration = Duration.ofDays(30)
+        val KITSU_SERIES_TTL: Duration = Duration.ofDays(7)
+
         private val lookupScript =
             DefaultRedisScript(
                 """

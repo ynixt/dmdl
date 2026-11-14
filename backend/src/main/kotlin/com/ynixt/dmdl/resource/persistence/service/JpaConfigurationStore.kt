@@ -143,6 +143,12 @@ class JpaConfigurationStore(
         }
     }
 
+    override fun replaceMetadataManifest(
+        id: UUID,
+        revision: Long,
+        manifest: AddonManifest,
+    ): Boolean = writes.run { metadataRepository.replaceManifest(id.toString(), revision, json.writeValueAsString(manifest)) == 1 }
+
     override fun searchAddons(): List<AddonConfiguration> =
         addons.findAllByOrderByDisplayOrderAscIdAsc().map {
             AddonConfiguration(

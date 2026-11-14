@@ -52,6 +52,8 @@ application:
     busy-timeout-millis: ${DMDL_DB_BUSY_TIMEOUT_MILLIS:5000}
   storage:
     root: ${DMDL_MEDIA_PATH:./media}
+  kitsu:
+    base-url: ${DMDL_KITSU_BASE_URL:https://kitsu.io/api/edge}
   aria2:
     rpc-url: ${DMDL_ARIA2_RPC_URL:http://127.0.0.1:${DMDL_ARIA2_RPC_PORT:16843}/jsonrpc}
     rpc-secret: ${DMDL_ARIA2_RPC_SECRET:change-me}

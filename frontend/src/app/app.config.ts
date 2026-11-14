@@ -5,12 +5,13 @@ import {
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
-import { TitleStrategy, provideRouter } from '@angular/router';
+import { TitleStrategy, provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideTranslateService } from '@ngx-translate/core';
 import { provideTranslateHttpLoader } from '@ngx-translate/http-loader';
 import { providePrimeNG } from 'primeng/config';
 import { ConfirmationService } from 'primeng/api';
 import { catchError, map, of, switchMap } from 'rxjs';
+import { NavigationHistory } from './pages/debrid/navigation-history.service';
 import { routes } from './app.routes';
 import { credentialsInterceptor } from './core/auth/credentials.interceptor';
 import { unauthorizedInterceptor } from './core/auth/unauthorized.interceptor';
@@ -31,7 +32,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(
       withInterceptors([credentialsInterceptor, unauthorizedInterceptor, availabilityInterceptor]),
     ),
-    provideRouter(routes),
+    provideRouter(routes, withInMemoryScrolling({ scrollPositionRestoration: 'enabled' })),
     provideTranslateService({
       lang: DEFAULT_LANGUAGE,
       fallbackLang: DEFAULT_LANGUAGE,
@@ -41,6 +42,7 @@ export const appConfig: ApplicationConfig = {
       }),
     }),
     provideAppInitializer(() => {
+      inject(NavigationHistory);
       const i18nService = inject(I18nService);
       const authService = inject(AuthService);
 

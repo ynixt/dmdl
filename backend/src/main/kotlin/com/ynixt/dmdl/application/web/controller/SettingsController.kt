@@ -17,6 +17,7 @@ import com.ynixt.dmdl.domain.model.OrganizationSnapshot
 import com.ynixt.dmdl.domain.model.StreamBadgeRules
 import com.ynixt.dmdl.domain.model.normalizeAddonManifestUrl
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
+import com.ynixt.dmdl.domain.service.MetadataManifestBackfill
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
@@ -66,6 +67,7 @@ class SettingsController(
     private val jellyfin: JellyfinGateway,
     private val storage: StorageProperties,
     private val finalizer: FileFinalizer,
+    private val manifestBackfill: MetadataManifestBackfill,
 ) {
     private val validation = ConfigurationValidation(addons, finalizer)
     private val searchValidator = SearchAddonValidator(validation)
@@ -174,7 +176,7 @@ class SettingsController(
     @GetMapping("/addons")
     fun listAddons() =
         mapOf(
-            "metadata" to store.metadata()?.let(::publicAddon),
+            "metadata" to manifestBackfill.current()?.let(::publicAddon),
             "search" to store.searchAddons().map(::publicAddon),
         )
 
@@ -217,7 +219,25 @@ class SettingsController(
             "id" to addon.id,
             "revision" to addon.revision,
             "name" to addon.name,
-            "manifest" to addon.manifest,
+            "manifest" to
+                mapOf(
+                    "id" to addon.manifest.id,
+                    "name" to addon.manifest.name,
+                    "types" to addon.manifest.types,
+                    "resources" to addon.manifest.resources,
+                    "catalogs" to
+                        addon.manifest.catalogs.map { catalog ->
+                            mapOf(
+                                "id" to catalog.id,
+                                "type" to catalog.type,
+                                "name" to catalog.name,
+                                "searchable" to catalog.searchable,
+                                "browsable" to catalog.browsable(),
+                                "pageable" to catalog.pageable(),
+                                "extra" to catalog.extra,
+                            )
+                        },
+                ),
             "enabled" to addon.enabled,
             "position" to addon.position,
             "manifestUrl" to addon.manifestUrl,

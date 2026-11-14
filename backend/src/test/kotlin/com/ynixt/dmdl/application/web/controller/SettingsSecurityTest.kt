@@ -45,6 +45,8 @@ class SettingsSecurityTest {
 
     @MockitoBean lateinit var finalizer: FileFinalizer
 
+    @MockitoBean lateinit var backfill: com.ynixt.dmdl.domain.service.MetadataManifestBackfill
+
     @Test
     fun `authenticated addon URLs and Jellyfin tokens are exposed with no store headers`() {
         val session = MockHttpSession()
@@ -62,6 +64,7 @@ class SettingsSecurityTest {
                 AddonManifest("fixture", "Fixture", emptyList(), emptyList(), emptyList()),
             )
         `when`(store.metadata()).thenReturn(addon)
+        `when`(backfill.current()).thenReturn(addon)
         `when`(store.searchAddons()).thenReturn(listOf(addon))
         mvc
             .perform(get("/api/addons").session(session))

@@ -1,26 +1,64 @@
 <p-toolbar>
-  <ng-template #start
-    ><a routerLink="/discovery" class="font-bold text-xl">Debrid Media Downloader</a></ng-template
-  >
+  <ng-template #start>
+    <div class="flex flex-col">
+      <a routerLink="/discovery" class="font-bold text-xl">Debrid Media Downloader</a>
+      @if (auth.isAuthenticated()) {
+        @if (version.buildInfo(); as build) {
+          @if (build.url) {
+            <a
+              class="text-xs opacity-70 self-start"
+              data-testid="app-version"
+              [href]="build.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              [title]="'KZ.RUNNING_VERSION' | translate"
+              >{{ build.label }}</a
+            >
+          } @else {
+            <span
+              class="text-xs opacity-70 self-start"
+              data-testid="app-version"
+              [title]="'KZ.RUNNING_VERSION' | translate"
+              >{{ build.label }}</span
+            >
+          }
+        }
+      }
+    </div>
+  </ng-template>
   <ng-template #end>
-    @if (auth.isAuthenticated()) {
-      <nav
-        class="flex flex-wrap gap-4 items-center"
-        [attr.aria-label]="'KZ.NAVIGATION' | translate"
-      >
-        @if (auth.currentOnboardingCompleted() === true) {
-          <a routerLink="/discovery" routerLinkActive="font-bold">{{
-            'KZ.DISCOVERY' | translate
-          }}</a>
-          <a routerLink="/downloads" routerLinkActive="font-bold">{{
-            'KZ.DOWNLOADS' | translate
-          }}</a>
-          <a routerLink="/settings" routerLinkActive="font-bold">{{ 'KZ.SETTINGS' | translate }}</a>
-        }
-        @if (!offline()) {
-          <p-button [label]="'KZ.LOGOUT' | translate" severity="secondary" (onClick)="logout()" />
-        }
-      </nav>
-    }
+    <div class="flex flex-wrap gap-4 items-center">
+      @if (auth.isAuthenticated()) {
+        <nav
+          class="flex flex-wrap gap-4 items-center"
+          [attr.aria-label]="'KZ.NAVIGATION' | translate"
+        >
+          @if (auth.currentOnboardingCompleted() === true) {
+            <a routerLink="/discovery" routerLinkActive="font-bold">{{
+              'KZ.DISCOVERY' | translate
+            }}</a>
+            <a routerLink="/downloads" routerLinkActive="font-bold">{{
+              'KZ.DOWNLOADS' | translate
+            }}</a>
+            <a routerLink="/settings" routerLinkActive="font-bold">{{
+              'KZ.SETTINGS' | translate
+            }}</a>
+          }
+          @if (!offline()) {
+            <p-button [label]="'KZ.LOGOUT' | translate" severity="secondary" (onClick)="logout()" />
+          }
+        </nav>
+      }
+      <a
+        data-testid="github-link"
+        [href]="repositoryUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center"
+        [attr.aria-label]="'KZ.GITHUB_REPOSITORY' | translate"
+        [title]="'KZ.GITHUB_REPOSITORY' | translate"
+        ><i class="pi pi-github text-xl" aria-hidden="true"></i
+      ></a>
+    </div>
   </ng-template>
 </p-toolbar>

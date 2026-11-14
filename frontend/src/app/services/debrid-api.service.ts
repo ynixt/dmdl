@@ -18,7 +18,14 @@ export interface Video {
   season: number;
   episode: number;
   title?: string;
+  thumbnail?: string;
+  overview?: string;
+  released?: string;
+  /** Episode score; its source is never known. */
+  rating?: string;
 }
+/** Where a title's rating comes from; `null` when the addon does not say. */
+export type RatingSource = 'IMDB' | 'KITSU';
 export interface Metadata {
   identity: Identity;
   title: string;
@@ -26,6 +33,13 @@ export interface Metadata {
   posterUrl?: string;
   description?: string;
   videos: Video[];
+  background?: string;
+  /** Presentation classification (Kitsu-verified for shows); `identity.resourceType` is only for addon calls. */
+  category?: Category;
+  /** Season number → poster URL, when the metadata addon provides them. */
+  seasonPosters?: Record<string, string>;
+  rating?: string;
+  ratingSource?: RatingSource | null;
 }
 export interface Content {
   identity: Identity;
@@ -74,11 +88,20 @@ export interface ReleasePage {
   total: number;
   hasNext: boolean;
 }
+export interface CatalogExtra {
+  name: string;
+  isRequired: boolean;
+  options?: string[] | null;
+  default?: string | null;
+}
 export interface Catalog {
   id: string;
   type: string;
   name: string;
   searchable: boolean;
+  browsable: boolean;
+  pageable: boolean;
+  extra?: CatalogExtra[] | null;
 }
 export interface Addon {
   id: string;

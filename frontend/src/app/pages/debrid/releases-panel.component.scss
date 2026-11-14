@@ -1,5 +1,17 @@
 .releases-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   padding-bottom: calc(2rem + var(--download-bar-height, 0px));
+}
+.release-source-panels {
+  padding: 1.5rem 0 0;
+  background: transparent;
+}
+.release-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 .download-bar {
   position: fixed;
@@ -22,7 +34,7 @@
 }
 .download-controls {
   display: grid;
-  grid-template-columns: minmax(10rem, 1fr) minmax(15rem, 2fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 1rem;
 }

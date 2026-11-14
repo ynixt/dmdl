@@ -1,6 +1,7 @@
 package com.ynixt.dmdl.domain.repository
 
 import com.ynixt.dmdl.domain.model.AddonConfiguration
+import com.ynixt.dmdl.domain.model.AddonManifest
 import com.ynixt.dmdl.domain.model.ApplicationSettings
 import com.ynixt.dmdl.domain.model.PreparedSetup
 
@@ -16,6 +17,12 @@ interface ConfigurationStore {
     fun metadata(): AddonConfiguration?
 
     fun saveMetadata(configuration: AddonConfiguration)
+
+    fun replaceMetadataManifest(
+        id: java.util.UUID,
+        revision: Long,
+        manifest: AddonManifest,
+    ): Boolean
 
     fun searchAddons(): List<AddonConfiguration>
 

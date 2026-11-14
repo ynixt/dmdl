@@ -43,6 +43,20 @@ RUN sed -i 's/\r$//' /usr/local/bin/start-aria2 /usr/local/bin/aria2-healthcheck
 COPY --from=backend-build /app/build/libs/*.jar /app/app.jar
 COPY --from=frontend-build /app/dist/dmdl/browser /usr/share/nginx/html
 
+# Build identity shown in the navbar, served as /version.json. CI passes the release tag (tag builds
+# only) and the commit SHA; both are optional and become null. Declared this late so a new commit only
+# rebuilds this tiny layer, not the backend or frontend builds.
+ARG APP_VERSION=""
+ARG GIT_SHA=""
+RUN set -eu; \
+    for value in "$APP_VERSION" "$GIT_SHA"; do \
+      case "$value" in *[!0-9A-Za-z._-]*) echo "Invalid build identity value: $value" >&2; exit 1 ;; esac; \
+    done; \
+    version=null; commit=null; \
+    if [ -n "$APP_VERSION" ]; then version="\"$APP_VERSION\""; fi; \
+    if [ -n "$GIT_SHA" ]; then commit="\"$GIT_SHA\""; fi; \
+    printf '{"version":%s,"commit":%s}\n' "$version" "$commit" > /usr/share/nginx/html/version.json
+
 # nginx (port 8080) is the only entry point. Internal ports and paths are wired in dmdl-entrypoint.
 
 WORKDIR /app

@@ -3,12 +3,26 @@ package com.ynixt.dmdl.domain.model
 import java.net.URI
 import java.util.UUID
 
+data class AddonCatalogExtra(
+    val name: String,
+    val isRequired: Boolean = false,
+    val options: List<String>? = null,
+    val default: String? = null,
+)
+
 data class AddonCatalog(
     val id: String,
     val type: String,
     val name: String,
     val searchable: Boolean,
-)
+    val extra: List<AddonCatalogExtra>? = null,
+) {
+    fun browsable(): Boolean =
+        type in setOf("movie", "series", "anime") &&
+            extra?.all { !it.isRequired || (it.name !in setOf("search", "skip") && !it.options.isNullOrEmpty()) } == true
+
+    fun pageable(): Boolean = browsable() && extra?.any { it.name == "skip" } == true
+}
 
 data class AddonResource(
     val name: String,

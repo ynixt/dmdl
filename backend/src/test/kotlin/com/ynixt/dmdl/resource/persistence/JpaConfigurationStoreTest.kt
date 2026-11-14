@@ -58,6 +58,16 @@ class JpaConfigurationStoreTest {
         assertEquals(7L, store.metadata()?.revision)
         store.replaceSearchAddons(emptyList())
         assertTrue(store.searchAddons().isEmpty())
+        val revision = store.settings()!!.configurationRevision
+        val updatedManifest = manifest.copy(name = "Backfilled")
+        assertTrue(store.replaceMetadataManifest(first.id, 7, updatedManifest))
+        assertEquals(updatedManifest, store.metadata()?.manifest)
+        assertEquals(7L, store.metadata()?.revision)
+        assertEquals(revision, store.settings()?.configurationRevision)
+        assertEquals(false, store.replaceMetadataManifest(UUID.randomUUID(), 7, manifest))
+        assertEquals(false, store.replaceMetadataManifest(first.id, 6, manifest))
+        assertEquals(updatedManifest, store.metadata()?.manifest)
+        assertEquals(revision, store.settings()?.configurationRevision)
     }
 
     companion object {

@@ -2,6 +2,7 @@ package com.ynixt.dmdl.resource.gateway.addon
 
 import com.ynixt.dmdl.domain.gateway.AddonGateway
 import com.ynixt.dmdl.domain.model.AddonCatalog
+import com.ynixt.dmdl.domain.model.AddonCatalogExtra
 import com.ynixt.dmdl.domain.model.AddonConfiguration
 import com.ynixt.dmdl.domain.model.AddonFailure
 import com.ynixt.dmdl.domain.model.AddonManifest
@@ -14,6 +15,7 @@ import com.ynixt.dmdl.domain.model.DiscoveryQuery
 import com.ynixt.dmdl.domain.model.MediaCategory
 import com.ynixt.dmdl.domain.model.MetadataDetails
 import com.ynixt.dmdl.domain.model.MetadataVideo
+import com.ynixt.dmdl.domain.model.RatingSource
 import com.ynixt.dmdl.domain.model.ReleaseGroup
 import com.ynixt.dmdl.domain.model.ReleaseProvenance
 import com.ynixt.dmdl.domain.model.ReleaseReference
@@ -63,12 +65,32 @@ class StremioAddonGateway(
             root["catalogs"]
                 ?.toList()
                 ?.map { node ->
+                    val required = node["extraRequired"]?.toList()?.map { it.asString() }.orEmpty()
+                    val extras =
+                        node["extra"]
+                            ?.toList()
+                            ?.map {
+                                AddonCatalogExtra(
+                                    text(it, "name"),
+                                    it["isRequired"]?.asBoolean() == true,
+                                    it["options"]?.toList()?.map { option -> option.asString() }.orEmpty(),
+                                    it["default"]?.takeUnless { value -> value.isNull }?.asString(),
+                                )
+                            }.orEmpty()
+                    val names =
+                        (extras.map { it.name } + required + node["extraSupported"]?.toList()?.map { it.asString() }.orEmpty())
+                            .distinct()
+                    val merged =
+                        names.map { name ->
+                            val declared = extras.firstOrNull { it.name == name } ?: AddonCatalogExtra(name, options = emptyList())
+                            declared.copy(isRequired = name in required || extras.any { it.name == name && it.isRequired })
+                        }
                     AddonCatalog(
                         text(node, "id"),
                         text(node, "type"),
                         node["name"]?.asString() ?: text(node, "id"),
-                        node["extra"]?.any { it["name"]?.asString() == "search" } == true ||
-                            node["extraSupported"]?.any { it.asString() == "search" } == true,
+                        merged.any { it.name == "search" },
+                        merged,
                     )
                 }.orEmpty()
         return AddonManifest(text(root, "id"), text(root, "name"), types, resources, catalogs)
@@ -83,6 +105,20 @@ class StremioAddonGateway(
                 ?: throw AddonFailure("This metadata addon does not advertise the selected searchable catalog")
         val root =
             get(resource(source.manifestUrl, "catalog/${segment(catalog.type)}/${segment(catalog.id)}/search=${segment(query.query)}.json"))
+        return root["metas"]?.toList()?.map { metadata(source, catalog.type, it) }.orEmpty()
+    }
+
+    override fun catalog(
+        source: AddonConfiguration,
+        catalog: AddonCatalog,
+        skip: Int,
+        extras: Map<String, String>,
+    ): List<MetadataDetails> {
+        val parameters = extras.toSortedMap().toMutableMap()
+        if (skip > 0) parameters["skip"] = skip.toString()
+        val extraPath = parameters.entries.joinToString("&") { (name, value) -> "${segment(name)}=${segment(value)}" }
+        val suffix = if (extraPath.isEmpty()) "" else "/$extraPath"
+        val root = get(resource(source.manifestUrl, "catalog/${segment(catalog.type)}/${segment(catalog.id)}$suffix.json"))
         return root["metas"]?.toList()?.map { metadata(source, catalog.type, it) }.orEmpty()
     }
 
@@ -194,13 +230,17 @@ class StremioAddonGateway(
         val id = text(node, "id")
         val mapped =
             buildMap {
-                listOf("tmdb", "tvdb", "imdb").forEach { provider ->
+                listOf("tmdb", "tvdb", "imdb", "kitsu", "mal", "anilist", "anidb").forEach { provider ->
                     val value =
                         sequenceOf(
                             node["${provider}_id"],
                             node["${provider}Id"],
+                            // AIOMetadata exposes cross-references as `_tvdbId`, `_kitsuId`, ...
+                            node["_${provider}Id"],
                             node[provider],
                             node["external_ids"]?.get("${provider}_id"),
+                            // Cinemeta names its TMDB id after TMDB's old name, The Movie Database.
+                            if (provider == "tmdb") node["moviedb_id"] else null,
                         ).mapNotNull {
                             it
                                 ?.takeIf { value ->
@@ -211,7 +251,9 @@ class StremioAddonGateway(
                     if (value != null) put(provider, value)
                 }
                 if (id.matches(Regex("tt[0-9]+"))) put("imdb", id)
-                Regex("^(tmdb|tvdb):([1-9][0-9]*)$").matchEntire(id)?.let { put(it.groupValues[1], it.groupValues[2]) }
+                Regex(
+                    "^(tmdb|tvdb|kitsu|mal|anilist|anidb):([1-9][0-9]*)$",
+                ).matchEntire(id)?.let { put(it.groupValues[1], it.groupValues[2]) }
             }
         return MetadataDetails(
             ContentIdentity(source.id, source.revision, node["type"]?.asString() ?: type, id, mappedIds = mapped),
@@ -230,10 +272,69 @@ class StremioAddonGateway(
                     ) {
                         null
                     } else {
-                        MetadataVideo(videoId, season, episode, video["title"]?.asString())
+                        MetadataVideo(
+                            videoId,
+                            season,
+                            episode,
+                            video["title"]?.asString(),
+                            video["thumbnail"]?.takeUnless { it.isNull }?.asString(),
+                            (video["overview"]?.takeUnless { it.isNull } ?: video["description"]?.takeUnless { it.isNull })?.asString(),
+                            video["released"]?.takeUnless { it.isNull }?.asString(),
+                            rating(video["rating"]),
+                        )
                     }
                 }.orEmpty(),
+            background = node["background"]?.takeUnless { it.isNull }?.asString(),
+            seasonPosters = seasonPosters(node),
+            rating = rating(node["imdbRating"]),
+            ratingSource = ratingSource(node),
         )
+    }
+
+    /** A score as the addon wrote it; blank, zero (Cinemeta's "unrated") or non-numeric values are absent. */
+    private fun rating(node: JsonNode?): String? =
+        node
+            ?.takeIf { it.isString || it.isNumber }
+            ?.asString()
+            ?.trim()
+            ?.takeIf { value -> value.toDoubleOrNull()?.let { it.isFinite() && it > 0 } == true }
+
+    /**
+     * The rating's source, read from the host of the addon's `imdb` link. anime-kitsu fills `imdbRating`
+     * with Kitsu's score and links it to kitsu.io, so the field name alone proves nothing.
+     */
+    private fun ratingSource(node: JsonNode): RatingSource? {
+        val link =
+            node["links"]
+                ?.takeIf { it.isArray }
+                ?.firstOrNull { it["category"]?.takeIf(JsonNode::isString)?.asString().equals("imdb", ignoreCase = true) }
+                ?: return null
+        val host =
+            link["url"]
+                ?.takeIf { it.isString }
+                ?.asString()
+                ?.let { runCatching { URI(it.trim()).host }.getOrNull() }
+                ?.lowercase()
+                ?: return null
+
+        fun matches(domain: String) = host == domain || host.endsWith(".$domain")
+        return when {
+            matches("imdb.com") -> RatingSource.IMDB
+            matches("kitsu.io") || matches("kitsu.app") -> RatingSource.KITSU
+            else -> null
+        }
+    }
+
+    /** Non-standard AIOMetadata extension: `app_extras.seasonPosters` maps season numbers to poster URLs. */
+    private fun seasonPosters(node: JsonNode): Map<Int, String> {
+        val posters = node["app_extras"]?.get("seasonPosters")?.takeIf { it.isObject } ?: return emptyMap()
+        return posters
+            .properties()
+            .mapNotNull { (season, url) ->
+                val number = season.toIntOrNull()?.takeIf { it >= 0 }
+                val value = url.takeIf { it.isString }?.asString()?.takeIf(String::isNotBlank)
+                if (number == null || value == null) null else number to value
+            }.toMap()
     }
 
     private fun get(url: String): JsonNode {
