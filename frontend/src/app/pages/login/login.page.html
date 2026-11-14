@@ -26,22 +26,26 @@
         }
       </label>
 
-      <label class="grid gap-2">
-        <span>{{ 'PAGES.LOGIN.FORM.PASSWORD.LABEL' | translate }}</span>
-        <input
-          pInputText
-          autocomplete="current-password"
+      <div class="grid gap-2">
+        <label for="login-password">{{ 'PAGES.LOGIN.FORM.PASSWORD.LABEL' | translate }}</label>
+        <app-secret-input
+          inputId="login-password"
+          kind="current-password"
           formControlName="password"
-          type="password"
           [placeholder]="'PAGES.LOGIN.FORM.PASSWORD.PLACEHOLDER' | translate"
-          [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid"
+          [describedBy]="
+            form.controls.password.touched && form.controls.password.hasError('required')
+              ? 'login-password-error'
+              : null
+          "
+          [invalid]="form.controls.password.touched && form.controls.password.invalid"
         />
         @if (form.controls.password.touched && form.controls.password.hasError('required')) {
-          <small class="text-[var(--app-error)]">
+          <small id="login-password-error" class="text-[var(--app-error)]">
             {{ 'PAGES.LOGIN.FORM.PASSWORD.REQUIRED' | translate }}
           </small>
         }
-      </label>
+      </div>
 
       @if (errorKey()) {
         <p-message severity="error">{{ errorKey()! | translate }}</p-message>

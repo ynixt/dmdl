@@ -22,15 +22,14 @@
           }}</small>
         }
       </label>
-      <label class="grid gap-2">
-        <span>{{ 'PAGES.LOGIN.FORM.PASSWORD.LABEL' | translate }}</span>
-        <input
-          pInputText
-          type="password"
+      <div class="grid gap-2">
+        <label for="register-password">{{ 'PAGES.LOGIN.FORM.PASSWORD.LABEL' | translate }}</label>
+        <app-secret-input
+          inputId="register-password"
+          kind="new-password"
           formControlName="password"
-          autocomplete="new-password"
-          aria-describedby="password-help"
-          [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid"
+          describedBy="password-help"
+          [invalid]="form.controls.password.touched && form.controls.password.invalid"
         />
         <small
           id="password-help"
@@ -42,25 +41,31 @@
         >
           {{ 'PAGES.REGISTER.PASSWORD_HELP' | translate }}
         </small>
-      </label>
-      <label class="grid gap-2">
-        <span>{{ 'PAGES.REGISTER.CONFIRM_PASSWORD' | translate }}</span>
-        <input
-          pInputText
-          type="password"
+      </div>
+      <div class="grid gap-2">
+        <label for="register-confirmation">{{
+          'PAGES.REGISTER.CONFIRM_PASSWORD' | translate
+        }}</label>
+        <app-secret-input
+          inputId="register-confirmation"
+          kind="new-password"
           formControlName="confirmation"
-          autocomplete="new-password"
-          [attr.aria-invalid]="
+          [describedBy]="
+            form.controls.confirmation.touched && form.hasError('passwordMismatch')
+              ? 'confirmation-error'
+              : null
+          "
+          [invalid]="
             form.controls.confirmation.touched &&
             (form.controls.confirmation.invalid || form.hasError('passwordMismatch'))
           "
         />
         @if (form.controls.confirmation.touched && form.hasError('passwordMismatch')) {
-          <small class="text-[var(--app-error)]">{{
+          <small id="confirmation-error" class="text-[var(--app-error)]">{{
             'PAGES.REGISTER.PASSWORD_MISMATCH' | translate
           }}</small>
         }
-      </label>
+      </div>
       @if (errorKey()) {
         <p-message severity="error">{{ errorKey()! | translate }}</p-message>
       }

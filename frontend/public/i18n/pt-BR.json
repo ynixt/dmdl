@@ -3,6 +3,8 @@
     "NAME": "Debrid Media Downloader"
   },
   "COMMON": {
+    "HIDE_SECRET": "Ocultar valor",
+    "SHOW_SECRET": "Mostrar valor",
     "LOADING": "Carregando"
   },
   "PAGES": {
