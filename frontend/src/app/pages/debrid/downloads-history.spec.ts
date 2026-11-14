@@ -65,7 +65,9 @@ describe('Completed download history actions', () => {
       download('failed', 'FAILED'),
       download('cancelled', 'CANCELLED'),
     ];
-    api.get.mockImplementation(async () => [...records]);
+    api.get.mockImplementation(async (path: string) =>
+      path.endsWith('/speed-history') ? [] : [...records],
+    );
     api.delete.mockImplementation(async (path: string) => {
       records = records.filter(
         (item) =>

@@ -176,6 +176,7 @@ export interface Download {
     destinationName: string;
   };
   createdAt: string;
+  startedAt?: string | null;
   error?: string;
   progress: {
     completedBytes: number;
@@ -207,6 +208,11 @@ export interface DownloadEvent {
   state: string;
   occurredAt: string;
   message?: string;
+}
+export interface SpeedSample {
+  at: string;
+  speedBytesPerSecond: number;
+  connections: number;
 }
 export interface Setup {
   missing: string[];

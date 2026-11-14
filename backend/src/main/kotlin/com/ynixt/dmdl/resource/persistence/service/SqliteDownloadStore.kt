@@ -31,8 +31,8 @@ class SqliteDownloadStore(
                     """
                     INSERT INTO download_request
                     (id, content_json, release_json, provider, organization_json, state, generation, owner,
-                     execution_json, progress_json, error, created_at, updated_at, completed_at)
-                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                     execution_json, progress_json, error, created_at, updated_at, completed_at, started_at)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     """.trimIndent(),
                     row.id,
                     row.contentJson,
@@ -48,6 +48,7 @@ class SqliteDownloadStore(
                     row.createdAt,
                     row.updatedAt,
                     row.completedAt,
+                    row.startedAt,
                 )
             if (inserted !=
                 1
@@ -146,6 +147,7 @@ class SqliteDownloadStore(
                     """
                     UPDATE download_request
                     SET state = ?, execution_json = ?, progress_json = ?, error = ?, updated_at = ?, completed_at = ?,
+                        started_at = COALESCE(started_at, ?),
                         owner = CASE WHEN ? IN ('PREPARING', 'TRANSFERRING', 'FINALIZING') THEN owner ELSE NULL END
                     WHERE id = ? AND generation = ? AND owner = ? AND worker_started = 1
                       AND state IN ('PREPARING', 'TRANSFERRING', 'FINALIZING')
@@ -156,6 +158,7 @@ class SqliteDownloadStore(
                     row.error,
                     row.updatedAt,
                     row.completedAt,
+                    row.startedAt,
                     row.state,
                     row.id,
                     row.generation,
@@ -286,6 +289,7 @@ class SqliteDownloadStore(
                 row.getString("created_at"),
                 row.getString("updated_at"),
                 row.getString("completed_at"),
+                row.getString("started_at"),
             ),
         )
 }

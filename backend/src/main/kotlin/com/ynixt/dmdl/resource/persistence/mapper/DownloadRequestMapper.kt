@@ -34,6 +34,7 @@ class DownloadRequestMapper(
             createdAt = request.createdAt.toString(),
             updatedAt = request.updatedAt.toString(),
             completedAt = request.completedAt?.toString(),
+            startedAt = request.startedAt?.toString(),
         )
 
     fun toDomain(entity: DownloadRequestEntity): DownloadRequest =
@@ -54,5 +55,6 @@ class DownloadRequestMapper(
             createdAt = Instant.parse(entity.createdAt),
             updatedAt = Instant.parse(entity.updatedAt),
             completedAt = entity.completedAt?.let(Instant::parse),
+            startedAt = entity.startedAt?.let(Instant::parse),
         )
 }

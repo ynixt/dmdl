@@ -24,6 +24,7 @@ class DownloadRequestEntity(
     var createdAt: String,
     var updatedAt: String,
     var completedAt: String?,
+    var startedAt: String? = null,
 )
 
 @Entity

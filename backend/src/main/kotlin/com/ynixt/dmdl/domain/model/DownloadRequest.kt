@@ -202,6 +202,15 @@ data class DownloadRequest(
     val createdAt: Instant,
     val updatedAt: Instant,
     val completedAt: Instant? = null,
+    /** First time the request entered [DownloadState.TRANSFERRING]; kept across pauses and retries. */
+    val startedAt: Instant? = null,
+)
+
+/** One point of a download's speed history, sampled while it transfers. */
+data class SpeedSample(
+    val at: Instant,
+    val speedBytesPerSecond: Long,
+    val connections: Int,
 )
 
 data class DownloadEvent(

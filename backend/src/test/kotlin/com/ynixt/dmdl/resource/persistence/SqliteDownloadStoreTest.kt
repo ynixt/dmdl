@@ -177,7 +177,7 @@ class SqliteDownloadStoreTest {
             val jdbc = JdbcTemplate(source)
             val store = SqliteDownloadStore(jdbc, TransactionTemplate(DataSourceTransactionManager(source)), mapper)
             entries.forEach { (state, request) ->
-                store.insert(request)
+                insertBeforeStartedAt(jdbc, mapper, request)
                 jdbc.update(
                     "UPDATE download_request SET state = ?, owner = ?, completed_at = ? WHERE id = ?",
                     state.name,
@@ -257,6 +257,122 @@ class SqliteDownloadStoreTest {
             repeat(2) { assertNull(assertNotNull(store.reserveNext(UUID.randomUUID())).provider) }
             assertNull(store.reserveNext(UUID.randomUUID()))
         }
+    }
+
+    @Test
+    fun `started timestamp is backfilled from the earliest transferring event`() {
+        val properties = SqliteDatabaseProperties(directory.resolve("started.db").toString(), 1000)
+        val mapper = DownloadRequestMapper(JsonMapper.builder().addModule(KotlinModule.Builder().build()).build())
+        val transferred = request()
+        val queued = request()
+        SqliteDatabaseConfig().dataSource(properties).use { source ->
+            Flyway
+                .configure()
+                .dataSource(source)
+                .locations("classpath:db/sqlite")
+                .target("7")
+                .load()
+                .migrate()
+            val jdbc = JdbcTemplate(source)
+            listOf(transferred, queued).forEach { insertBeforeStartedAt(jdbc, mapper, it) }
+            jdbc.update("UPDATE download_request SET state = 'FAILED', generation = 3 WHERE id = ?", transferred.id.toString())
+            listOf(
+                Triple(transferred, "QUEUED", "2026-11-14T14:40:00Z"),
+                Triple(transferred, "TRANSFERRING", "2026-11-14T15:10:00.5Z"),
+                Triple(transferred, "TRANSFERRING", "2026-11-14T14:41:00.25Z"),
+                Triple(transferred, "TRANSFERRING", "2026-11-14T14:41:00Z"),
+                Triple(transferred, "FAILED", "2026-11-14T14:50:00Z"),
+                Triple(queued, "QUEUED", "2026-11-14T14:40:00Z"),
+            ).forEachIndexed { generation, (request, state, at) ->
+                jdbc.update(
+                    "INSERT INTO download_event(id, request_id, generation, state, occurred_at) VALUES (?, ?, ?, ?, ?)",
+                    UUID.randomUUID().toString(),
+                    request.id.toString(),
+                    generation,
+                    state,
+                    at,
+                )
+            }
+            Flyway
+                .configure()
+                .dataSource(source)
+                .locations("classpath:db/sqlite")
+                .load()
+                .migrate()
+            val store = SqliteDownloadStore(jdbc, TransactionTemplate(DataSourceTransactionManager(source)), mapper)
+            assertEquals(Instant.parse("2026-11-14T14:41:00Z"), store.find(transferred.id)!!.startedAt)
+            assertNull(store.find(queued.id)!!.startedAt)
+        }
+    }
+
+    @Test
+    fun `started timestamp round-trips and keeps its first value`() {
+        SqliteDatabaseConfig().dataSource(SqliteDatabaseProperties(directory.resolve("roundtrip.db").toString())).use { source ->
+            Flyway
+                .configure()
+                .dataSource(source)
+                .locations("classpath:db/sqlite")
+                .load()
+                .migrate()
+            val jdbc = JdbcTemplate(source)
+            jdbc.update(
+                """INSERT INTO application_settings(id, username, password_hash, organization_json, transfer_options_json,
+                max_concurrent_downloads, created_at, updated_at) VALUES (1, 'admin', 'hash', '{}', '{}', 1, 'now', 'now')""",
+            )
+            val store =
+                SqliteDownloadStore(
+                    jdbc,
+                    TransactionTemplate(DataSourceTransactionManager(source)),
+                    DownloadRequestMapper(JsonMapper.builder().addModule(KotlinModule.Builder().build()).build()),
+                )
+            store.insert(request())
+            val active = assertNotNull(store.reserveNext(UUID.randomUUID()))
+            assertNull(active.startedAt)
+            assertTrue(store.startOnce(active.id, active.execution.generation))
+            val first = Instant.parse("2026-11-14T14:41:00.123Z")
+            assertTrue(store.checkpoint(active.copy(state = DownloadState.TRANSFERRING, startedAt = first)))
+            assertEquals(first, store.find(active.id)!!.startedAt)
+            assertTrue(store.checkpoint(active.copy(state = DownloadState.TRANSFERRING, startedAt = first.plusSeconds(1800))))
+            assertEquals(first, store.find(active.id)!!.startedAt)
+            assertTrue(store.checkpoint(active.copy(state = DownloadState.TRANSFERRING, startedAt = null)))
+            assertEquals(first, store.find(active.id)!!.startedAt)
+        }
+    }
+
+    /** Inserts like [SqliteDownloadStore.insert] did before V8 added `started_at`. */
+    private fun insertBeforeStartedAt(
+        jdbc: JdbcTemplate,
+        mapper: DownloadRequestMapper,
+        request: DownloadRequest,
+    ) {
+        val row = mapper.toEntity(request)
+        jdbc.update(
+            """INSERT INTO download_request (id, content_json, release_json, provider, organization_json, state, generation,
+            owner, execution_json, progress_json, error, created_at, updated_at, completed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            row.id,
+            row.contentJson,
+            row.releaseJson,
+            row.provider,
+            row.organizationJson,
+            row.state,
+            row.generation,
+            row.owner,
+            row.executionJson,
+            row.progressJson,
+            row.error,
+            row.createdAt,
+            row.updatedAt,
+            row.completedAt,
+        )
+        jdbc.update(
+            "INSERT INTO download_event(id, request_id, generation, state, occurred_at) VALUES (?, ?, ?, ?, ?)",
+            UUID.randomUUID().toString(),
+            row.id,
+            row.generation,
+            row.state,
+            row.createdAt,
+        )
     }
 
     private fun request(): DownloadRequest {

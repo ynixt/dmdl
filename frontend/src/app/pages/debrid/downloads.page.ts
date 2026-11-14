@@ -3,9 +3,11 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   OnInit,
   signal,
+  untracked,
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '@ngx-translate/core';
@@ -18,11 +20,28 @@ import {
   Download,
   DownloadEvent,
   DownloadStatus,
+  SpeedSample,
 } from '../../services/debrid-api.service';
+import { DownloadSpeedChartComponent, SpeedPoint } from './download-speed-chart.component';
+
+/** Stored samples from the backend plus live points received since the newest one. */
+interface SpeedHistory {
+  stored: SpeedPoint[];
+  tail: SpeedPoint[];
+}
+
+const SPEED_HISTORY_REFRESH_MS = 30_000;
+const MAX_LIVE_TAIL = 2880;
 
 @Component({
   selector: 'app-downloads',
-  imports: [CommonModule, TranslatePipe, ButtonModule, ProgressBarModule],
+  imports: [
+    CommonModule,
+    TranslatePipe,
+    ButtonModule,
+    ProgressBarModule,
+    DownloadSpeedChartComponent,
+  ],
   templateUrl: './downloads.page.html',
   changeDetection: ChangeDetectionStrategy.Default,
   styleUrl: './debrid.scss',
@@ -40,6 +59,23 @@ export class DownloadsPage implements OnInit {
   readonly busy = signal(false);
   readonly history = signal<Record<string, DownloadEvent[]>>({});
   readonly cancellingIds = signal<Set<string>>(new Set());
+  readonly speedHistory = signal<Record<string, SpeedHistory>>({});
+  readonly speedPoints = computed<Record<string, SpeedPoint[]>>(() =>
+    Object.fromEntries(
+      Object.entries(this.speedHistory()).map(([id, history]) => [
+        id,
+        [...history.stored, ...history.tail],
+      ]),
+    ),
+  );
+  constructor() {
+    effect(() => {
+      const items = this.items();
+      untracked(() => this.syncSpeedHistory(items));
+    });
+    const refresh = setInterval(() => void this.refreshSpeedHistory(), SPEED_HISTORY_REFRESH_MS);
+    this.destroy.onDestroy(() => clearInterval(refresh));
+  }
   async ngOnInit(): Promise<void> {
     await this.reload();
     if (this.destroy.destroyed) return;
@@ -181,6 +217,62 @@ export class DownloadsPage implements OnInit {
       await this.api.post(`/downloads/${id}/notification/retry`);
       this.items.set(await this.api.get<DownloadStatus[]>('/downloads'));
     });
+  }
+  async toggleHistory(id: string): Promise<void> {
+    if (this.history()[id]) {
+      this.history.update((current) =>
+        Object.fromEntries(Object.entries(current).filter(([requestId]) => requestId !== id)),
+      );
+      return;
+    }
+    await this.loadHistory(id);
+  }
+  /** Re-reads stored samples for every charted download and drops live points they now cover. */
+  async refreshSpeedHistory(): Promise<void> {
+    await Promise.all(Object.keys(this.speedHistory()).map((id) => this.fetchSpeedHistory(id)));
+  }
+  private syncSpeedHistory(items: DownloadStatus[]): void {
+    const now = Date.now();
+    const current = this.speedHistory();
+    const next: Record<string, SpeedHistory> = {};
+    const added: string[] = [];
+    for (const { request } of items) {
+      if (request.state !== 'TRANSFERRING') continue;
+      const previous = current[request.id];
+      if (!previous) added.push(request.id);
+      const point: SpeedPoint = {
+        at: now,
+        speedBytesPerSecond: request.progress.allocation ? 0 : request.progress.speedBytesPerSecond,
+        connections: request.progress.connections ?? 0,
+      };
+      next[request.id] = {
+        stored: previous?.stored ?? [],
+        tail: [...(previous?.tail ?? []), point].slice(-MAX_LIVE_TAIL),
+      };
+    }
+    this.speedHistory.set(next);
+    for (const id of added) void this.fetchSpeedHistory(id);
+  }
+  private async fetchSpeedHistory(id: string): Promise<void> {
+    try {
+      const samples = await this.api.get<SpeedSample[]>(`/downloads/${id}/speed-history`);
+      const stored = samples.map((sample) => ({
+        at: Date.parse(sample.at),
+        speedBytesPerSecond: sample.speedBytesPerSecond,
+        connections: sample.connections,
+      }));
+      const newest = stored.at(-1)?.at ?? Number.NEGATIVE_INFINITY;
+      this.speedHistory.update((current) =>
+        current[id]
+          ? {
+              ...current,
+              [id]: { stored, tail: current[id].tail.filter((point) => point.at > newest) },
+            }
+          : current,
+      );
+    } catch {
+      // The chart keeps showing live points; losing stored samples must not disturb the page.
+    }
   }
   async loadHistory(id: string): Promise<void> {
     await this.run(async () => {
