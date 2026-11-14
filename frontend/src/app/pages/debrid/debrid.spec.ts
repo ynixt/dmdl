@@ -252,6 +252,8 @@ describe('Manual discovery journey', () => {
     expect(fixture.nativeElement.querySelector('[id^=storage-path-]')?.value).toBe(
       '/test-media/movies',
     );
+    expect(fixture.nativeElement.querySelector('#transfer-lowest-speed-enabled')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#transfer-lowest-speed')).toBeNull();
   });
   it('preselects the category default and submits an explicit SSD override', async () => {
     const page = TestBed.createComponent(ReleasesPage).componentInstance;
