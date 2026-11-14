@@ -7,6 +7,7 @@ import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
+import { SecretInputComponent } from '../../components/secret-input/secret-input.component';
 import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 
@@ -19,6 +20,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
     CardModule,
     InputTextModule,
     MessageModule,
+    SecretInputComponent,
   ],
   templateUrl: './register.page.html',
   styleUrl: '../login/login.page.scss',

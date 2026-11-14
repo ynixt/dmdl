@@ -9,6 +9,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { firstValueFrom } from 'rxjs';
+import { SecretInputComponent } from '../../components/secret-input/secret-input.component';
 import { AuthService } from '../../core/auth/auth.service';
 import { I18nService, toSupportedLanguage } from '../../core/i18n/i18n.service';
 
@@ -21,6 +22,7 @@ import { I18nService, toSupportedLanguage } from '../../core/i18n/i18n.service';
     ButtonModule,
     MessageModule,
     ProgressSpinnerModule,
+    SecretInputComponent,
     TranslatePipe,
   ],
   templateUrl: './login.page.html',
