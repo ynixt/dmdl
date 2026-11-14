@@ -88,6 +88,7 @@
     "HIDE_EVENTS": "Hide events",
     "REQUESTED_AT": "Requested",
     "STARTED_AT": "Started",
+    "COMPLETED_AT": "Completed",
     "SPEED_CHART_SPEED": "Speed",
     "SPEED_CHART_SUMMARY": "Download speed: {{current}} MiB/s now, peak {{peak}} MiB/s. Open connections: {{connections}} now, peak {{peakConnections}}.",
     "SPEED_CHART_EMPTY": "Waiting for speed samples…",

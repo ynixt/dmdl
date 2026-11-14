@@ -88,6 +88,7 @@
     "HIDE_EVENTS": "Esconder eventos",
     "REQUESTED_AT": "Solicitado",
     "STARTED_AT": "Iniciado",
+    "COMPLETED_AT": "Finalizado",
     "SPEED_CHART_SPEED": "Velocidade",
     "SPEED_CHART_SUMMARY": "Velocidade do download: {{current}} MiB/s agora, pico de {{peak}} MiB/s. Conexões abertas: {{connections}} agora, pico de {{peakConnections}}.",
     "SPEED_CHART_EMPTY": "Aguardando amostras de velocidade…",

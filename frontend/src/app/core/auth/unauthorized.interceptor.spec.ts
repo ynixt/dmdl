@@ -302,4 +302,34 @@ describe('Expired session handling during page operations', () => {
       vi.useRealTimers();
     }
   });
+
+  it('keeps an idle download stream alive through heartbeats without polling the history', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const now = vi.spyOn(Date, 'now');
+    try {
+      await authenticate();
+      const harness = await RouterTestingHarness.create('/discovery');
+      const navigation = harness.navigateByUrl('/downloads', DownloadsPage);
+      await vi.waitFor(() => http.expectOne('/api/downloads').flush([]));
+      await navigation;
+      await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
+      const stream = TestEventSource.instances[0];
+      const heartbeat = stream.addEventListener.mock.calls.find(
+        ([name]) => name === 'heartbeat',
+      )![1];
+      let time = Date.now();
+      for (let i = 0; i < 6; i++) {
+        time += 1500;
+        now.mockReturnValue(time);
+        heartbeat();
+        vi.advanceTimersByTime(1500);
+      }
+      http.expectNone('/api/downloads');
+      harness.fixture.destroy();
+      expect(stream.close).toHaveBeenCalledOnce();
+    } finally {
+      now.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 });

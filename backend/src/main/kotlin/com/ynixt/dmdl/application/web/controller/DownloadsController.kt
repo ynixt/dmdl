@@ -176,10 +176,28 @@ class DownloadsController(
     fun events(): SseEmitter {
         val emitter = SseEmitter(0L)
         emitters.add(emitter)
+        var previous: Map<UUID, DownloadStatusUpdate>? = null
         val task =
             updates.scheduleAtFixedRate({
                 try {
-                    emitter.send(SseEmitter.event().name("downloads").data(list()))
+                    val current = list().associateBy { it.request.id }
+                    val last = previous
+                    if (last == null) {
+                        emitter.send(SseEmitter.event().name("downloads").data(current.values.toList()))
+                    } else {
+                        val changed = current.values.filter { last[it.request.id] != it }
+                        val removed = last.keys - current.keys
+                        if (changed.isNotEmpty()) {
+                            emitter.send(SseEmitter.event().name("download-updates").data(changed))
+                        }
+                        if (removed.isNotEmpty()) {
+                            emitter.send(SseEmitter.event().name("downloads-removed").data(removed))
+                        }
+                        if (changed.isEmpty() && removed.isEmpty()) {
+                            emitter.send(SseEmitter.event().name("heartbeat").data(emptyList<UUID>()))
+                        }
+                    }
+                    previous = current
                 } catch (
                     _: Exception,
                 ) {

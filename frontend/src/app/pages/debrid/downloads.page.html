@@ -44,6 +44,14 @@
               }}</time></span
             >
           }
+          @if (request.completedAt) {
+            <span class="completed-at"
+              >{{ 'KZ.COMPLETED_AT' | translate }} ·
+              <time [attr.datetime]="request.completedAt">{{
+                request.completedAt | date: 'short'
+              }}</time></span
+            >
+          }
         </p>
       </div>
       @if (request.state !== 'CANCELLED' && !cancelling(request)) {

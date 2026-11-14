@@ -126,6 +126,68 @@ describe('Downloads page insights', () => {
       '2026-11-14T14:41:00Z',
     );
     expect(active.querySelector('.started-at time')?.textContent?.trim()).not.toBe('');
+    expect(queued.querySelector('.completed-at')).toBeNull();
+    expect(active.querySelector('.completed-at')).toBeNull();
+  });
+
+  it('shows the persisted completion time alongside the requested and started times', async () => {
+    const completed = download('completed', 'COMPLETED', '2026-11-14T14:41:00Z');
+    completed.request.completedAt = '2026-11-14T14:59:00Z';
+    records = [completed];
+    await render();
+    expect(section('completed').querySelector('.completed-at')?.textContent).toContain(
+      'KZ.COMPLETED_AT',
+    );
+    expect(section('completed').querySelector('.completed-at time')?.getAttribute('datetime')).toBe(
+      completed.request.completedAt,
+    );
+    expect(section('completed').querySelector('.completed-at time')?.textContent?.trim()).not.toBe(
+      '',
+    );
+    expect(section('completed').querySelectorAll('.download-times time')).toHaveLength(3);
+  });
+
+  it('merges stream changes while retaining finished downloads and replaces the snapshot on reconnect', async () => {
+    records = [download('completed', 'COMPLETED'), download('active', 'TRANSFERRING')];
+    await render();
+    const completed = fixture.componentInstance.items()[0];
+    const update = download('active', 'COMPLETED', '2026-11-14T14:41:00Z');
+    update.request.completedAt = '2026-11-14T15:00:00Z';
+    const newest = download('newest', 'QUEUED');
+    newest.request.createdAt = '2026-11-14T15:01:00Z';
+    streamListeners['download-updates']({ data: JSON.stringify([update, newest]) } as MessageEvent);
+    await settle();
+    expect(fixture.componentInstance.items().map((item) => item.request.id)).toEqual([
+      'newest',
+      'active',
+      'completed',
+    ]);
+    expect(fixture.componentInstance.items()[2]).toBe(completed);
+    expect(section('active').querySelector('.completed-at')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-download-speed-chart')).toBeNull();
+
+    update.notification = { state: 'SENT', attempts: 1 };
+    streamListeners['download-updates']({ data: JSON.stringify([update]) } as MessageEvent);
+    await settle();
+    expect(section('active').querySelector('.notification')?.textContent).toContain(
+      'KZ.NOTIFY_SENT',
+    );
+
+    fixture.componentInstance.history.set({
+      completed: [{ id: 'event', state: 'COMPLETED', occurredAt: '2026-11-14T14:59:00Z' }],
+    });
+    streamListeners['downloads-removed']({ data: JSON.stringify(['completed']) } as MessageEvent);
+    await settle();
+    expect(fixture.componentInstance.items().map((item) => item.request.id)).toEqual([
+      'newest',
+      'active',
+    ]);
+    expect(fixture.componentInstance.history()['completed']).toBeUndefined();
+
+    records = [newest];
+    pushStream();
+    await settle();
+    expect(fixture.componentInstance.items()).toEqual(records);
   });
 
   it('toggles the event list and refetches events when reopened', async () => {
@@ -162,6 +224,23 @@ describe('Downloads page insights', () => {
     expect(
       api.get.mock.calls.filter(([path]) => path === '/downloads/paused/history'),
     ).toHaveLength(2);
+  });
+
+  it('keeps a stream completion when an older HTTP refresh finishes later', async () => {
+    records = [download('active', 'TRANSFERRING')];
+    await render();
+    let finishRefresh!: (items: DownloadStatus[]) => void;
+    api.get.mockImplementationOnce(
+      () => new Promise<DownloadStatus[]>((resolve) => (finishRefresh = resolve)),
+    );
+    const reload = fixture.componentInstance.reload();
+    const completed = download('active', 'COMPLETED');
+    completed.request.completedAt = '2026-11-14T15:00:00Z';
+    streamListeners['download-updates']({ data: JSON.stringify([completed]) } as MessageEvent);
+    finishRefresh(records);
+    await reload;
+    await settle();
+    expect(fixture.componentInstance.items()).toEqual([completed]);
   });
 
   it('charts only transferring downloads and drops their history when they stop', async () => {

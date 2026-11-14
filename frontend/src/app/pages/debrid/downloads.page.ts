@@ -51,6 +51,7 @@ export class DownloadsPage implements OnInit {
   private readonly destroy = inject(DestroyRef);
   private readonly availability = inject(ApiAvailabilityService);
   private readonly router = inject(Router);
+  private streamVersion = 0;
   readonly items = signal<DownloadStatus[]>([]);
   readonly hasRemovableHistory = computed(() =>
     this.items().some((item) => this.canRemoveFromHistory(item.request)),
@@ -86,9 +87,8 @@ export class DownloadsPage implements OnInit {
       if (refreshing || this.destroy.destroyed) return;
       refreshing = true;
       try {
-        const items = await this.api.get<DownloadStatus[]>('/downloads');
+        await this.refreshItems();
         if (!this.destroy.destroyed) {
-          this.items.set(items);
           if (this.error() === 'KZ.RECONNECTING') this.error.set('');
         }
       } catch {
@@ -97,11 +97,39 @@ export class DownloadsPage implements OnInit {
         refreshing = false;
       }
     };
-    stream.addEventListener('downloads', (event) => {
-      this.items.set(JSON.parse((event as MessageEvent).data) as DownloadStatus[]);
+    const received = () => {
       lastEventAt = Date.now();
       if (this.error() === 'KZ.RECONNECTING') this.error.set('');
+    };
+    stream.addEventListener('downloads', (event) => {
+      this.streamVersion++;
+      this.items.set(JSON.parse((event as MessageEvent).data) as DownloadStatus[]);
+      received();
     });
+    stream.addEventListener('download-updates', (event) => {
+      this.streamVersion++;
+      const updates = JSON.parse((event as MessageEvent).data) as DownloadStatus[];
+      this.items.update((items) => {
+        const merged = new Map(items.map((item) => [item.request.id, item]));
+        for (const item of updates) merged.set(item.request.id, item);
+        return [...merged.values()].sort(
+          (a, b) =>
+            b.request.createdAt.localeCompare(a.request.createdAt) ||
+            a.request.id.localeCompare(b.request.id),
+        );
+      });
+      received();
+    });
+    stream.addEventListener('downloads-removed', (event) => {
+      this.streamVersion++;
+      const removed = new Set(JSON.parse((event as MessageEvent).data) as string[]);
+      this.items.update((items) => items.filter((item) => !removed.has(item.request.id)));
+      this.history.update((history) =>
+        Object.fromEntries(Object.entries(history).filter(([id]) => !removed.has(id))),
+      );
+      received();
+    });
+    stream.addEventListener('heartbeat', received);
     stream.onerror = () => {
       this.error.set('KZ.RECONNECTING');
       void this.availability.confirmAndGoOffline(this.router.url);
@@ -117,13 +145,18 @@ export class DownloadsPage implements OnInit {
     });
   }
   async reload(): Promise<void> {
-    await this.run(async () => this.items.set(await this.api.get<DownloadStatus[]>('/downloads')));
+    await this.run(() => this.refreshItems());
+  }
+  private async refreshItems(): Promise<void> {
+    const version = this.streamVersion;
+    const items = await this.api.get<DownloadStatus[]>('/downloads');
+    if (!this.destroy.destroyed && version === this.streamVersion) this.items.set(items);
   }
   async removeFromHistory(id?: string): Promise<void> {
     if (this.busy()) return;
     await this.run(async () => {
       await this.api.delete(id ? `/downloads/${id}` : '/downloads/completed');
-      this.items.set(await this.api.get<DownloadStatus[]>('/downloads'));
+      await this.refreshItems();
       this.history.update((current) =>
         Object.fromEntries(
           Object.entries(current).filter(([requestId]) =>
@@ -208,14 +241,14 @@ export class DownloadsPage implements OnInit {
         generation: item.execution.generation,
         action,
       });
-      this.items.set(await this.api.get<DownloadStatus[]>('/downloads'));
+      await this.refreshItems();
     });
     this.cancellingIds.update((ids) => new Set([...ids].filter((id) => id !== item.id)));
   }
   async notification(id: string): Promise<void> {
     await this.run(async () => {
       await this.api.post(`/downloads/${id}/notification/retry`);
-      this.items.set(await this.api.get<DownloadStatus[]>('/downloads'));
+      await this.refreshItems();
     });
   }
   async toggleHistory(id: string): Promise<void> {

@@ -204,6 +204,7 @@ export interface Download {
   };
   createdAt: string;
   startedAt?: string | null;
+  completedAt?: string | null;
   error?: string;
   progress: {
     completedBytes: number;
