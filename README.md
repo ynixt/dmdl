@@ -67,7 +67,19 @@ To save to more than one disk, mount each folder into the `dmdl` service in `com
 
 ### Using your own Redis
 
-Remove the `redis` service (and `depends_on`) from `compose.yaml` and point dmdl at your server with `DMDL_REDIS_HOST`, `DMDL_REDIS_PORT`, `DMDL_REDIS_PASSWORD` and, if needed, `DMDL_REDIS_USERNAME` and `DMDL_REDIS_DATABASE`. An ACL user needs permission to run `CONFIG SET`, which dmdl uses at startup to enable Redis keyspace notifications for sessions.
+Remove the `redis` service (and `depends_on`) from `compose.yaml` and point dmdl at your server with `DMDL_REDIS_HOST`, `DMDL_REDIS_PORT`, `DMDL_REDIS_PASSWORD` and, if needed, `DMDL_REDIS_USERNAME` and `DMDL_REDIS_DATABASE`.
+
+dmdl stores login sessions in Redis and needs Redis keyspace notifications to clean up expired sessions. By default it enables them itself at startup with `CONFIG GET` / `CONFIG SET`, which requires admin permissions. If your Redis user is not allowed to run `CONFIG` (for example an ACL user with `-@admin`, which fails with `NOPERM ... 'config|get'`), configure the notifications on the Redis server instead and tell dmdl to skip that step:
+
+1. Add this line to your `redis.conf` and restart Redis:
+
+   ```conf
+   notify-keyspace-events Egx
+   ```
+
+2. Set `DMDL_REDIS_CONFIGURE_ACTION: none` on the `dmdl` service.
+
+Skipping step 1 does not break startup, but expired sessions are then never cleaned up from Redis.
 
 ### Updating
 
@@ -79,7 +91,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.3`, or use `edge` for the latest `master` build.
+Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.4`, or use `edge` for the latest `master` build.
 
 ### Environment variables
 
@@ -101,6 +113,7 @@ These are read by the `dmdl` container and can be set under its `environment:`:
 | `DMDL_REDIS_USERNAME` | empty | Optional Redis ACL user. Leave empty to authenticate with the password only (the `default` user). |
 | `DMDL_REDIS_PASSWORD` | empty | Redis password. |
 | `DMDL_REDIS_DATABASE` | `0` | Redis database number, e.g. `2` to keep dmdl apart from other apps on the same server. |
+| `DMDL_REDIS_CONFIGURE_ACTION` | `notify-keyspace-events` | `notify-keyspace-events` makes dmdl enable Redis keyspace notifications at startup (needs `CONFIG` permission). `none` skips it: then you **must** add `notify-keyspace-events Egx` to your Redis server's `redis.conf`. See [Using your own Redis](#using-your-own-redis). |
 | `DMDL_SESSION_TIMEOUT` | `30d` | Login session and cookie lifetime. |
 | `DMDL_ARIA2_RPC_SECRET` | random on each start | Secret for the internal aria2 RPC. Only set it if you need a fixed value. |
 | `DMDL_ARIA2_POLL_INTERVAL` | `1s` | How often download status is read from aria2. |

@@ -15,6 +15,9 @@ spring:
     data:
       redis:
         repository-type: indexed
+        # notify-keyspace-events: enable keyspace notifications at startup (needs CONFIG permission)
+        # none: skip it; the Redis server must then have "notify-keyspace-events Egx" configured
+        configure-action: ${DMDL_REDIS_CONFIGURE_ACTION:notify-keyspace-events}
   jpa:
     open-in-view: false
     database-platform: org.hibernate.community.dialect.SQLiteDialect
