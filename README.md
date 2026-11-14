@@ -119,8 +119,20 @@ These are read by the `dmdl` container and can be set under its `environment:`:
 | `DMDL_ARIA2_POLL_INTERVAL` | `1s` | How often download status is read from aria2. |
 | `DMDL_ARIA2_PROGRESS_PUBLICATION_INTERVAL` | `1s` | How often live progress is pushed to the browser. |
 | `DMDL_ARIA2_SAVE_SESSION_INTERVAL` | `30` | Seconds between saves of the aria2 session (used to resume after a restart). |
+| `DMDL_ARIA2_LOG_LEVEL` | `notice` | How much aria2 writes to the container log: `debug`, `info`, `notice`, `warn` or `error`. Use `info` to see why connections are dropped. **Warning:** at `info` and `debug` aria2 logs download URLs, and debrid links can carry access tokens, so don't share those logs as they are. Any other value stops the container at startup. |
+| `DMDL_NGINX_ACCESS_LOG` | `false` | `true` writes one nginx access line per request to the container log. Off by default because the web UI polls and streams constantly. nginx errors are always logged. |
 | `DMDL_DB_BUSY_TIMEOUT_MILLIS` | `5000` | How long the SQLite database waits for a lock before failing. |
 | `DMDL_JAVA_OPTS` | empty | Extra JVM options, e.g. `-Xmx512m`. |
+
+### Logs
+
+`docker compose logs dmdl` shows the backend, nginx errors and aria2. Every aria2 line starts with `[aria2] `, so you can show only those:
+
+```bash
+docker compose logs dmdl | grep '\[aria2\]'
+```
+
+The example compose files keep at most three 10 MB log files per service.
 
 ## License
 
