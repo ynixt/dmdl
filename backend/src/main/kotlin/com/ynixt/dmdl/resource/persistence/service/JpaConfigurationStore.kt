@@ -76,9 +76,8 @@ class JpaConfigurationStore(
             if (current.onboardingCompleted || current.configurationRevision != setup.expectedRevision) {
                 throw ConfigurationConflict("Configuration changed. Reload setup before submitting again")
             }
-            saveMetadata(setup.metadata)
-            addons.deleteAll()
-            setup.search.forEach(::saveSearchAddon)
+            saveMetadata(setup.metadata.copy(revision = (metadata()?.revision ?: 0) + 1))
+            replaceSearchAddons(setup.search.map { it.copy(revision = 1) })
             saveSettingsRow(
                 setup.settings.copy(
                     onboardingCompleted = true,
@@ -130,12 +129,11 @@ class JpaConfigurationStore(
 
     override fun saveMetadata(configuration: AddonConfiguration) {
         writes.run {
-            val revision = (metadataRepository.findById(1).orElse(null)?.revision ?: 0) + 1
             metadataRepository.save(
                 MetadataAddonEntity(
                     1,
                     configuration.id.toString(),
-                    revision,
+                    configuration.revision,
                     configuration.name,
                     configuration.manifestUrl,
                     json.writeValueAsString(configuration.manifest),
@@ -158,27 +156,23 @@ class JpaConfigurationStore(
             )
         }
 
-    override fun saveSearchAddon(configuration: AddonConfiguration) {
+    override fun replaceSearchAddons(configurations: List<AddonConfiguration>) {
         writes.run {
-            val revision = (addons.findById(configuration.id.toString()).orElse(null)?.revision ?: 0) + 1
-            addons.save(
-                SearchAddonEntity(
-                    configuration.id.toString(),
-                    revision,
-                    configuration.name,
-                    configuration.manifestUrl,
-                    json.writeValueAsString(configuration.manifest),
-                    configuration.enabled,
-                    configuration.position,
-                ),
-            )
-            settings()?.let(::saveSettingsRow)
-        }
-    }
-
-    override fun removeSearchAddon(id: UUID) {
-        writes.run {
-            addons.deleteById(id.toString())
+            val ids = configurations.map { it.id.toString() }.toSet()
+            addons.findAll().filter { it.id !in ids }.forEach(addons::delete)
+            configurations.forEachIndexed { position, configuration ->
+                addons.save(
+                    SearchAddonEntity(
+                        configuration.id.toString(),
+                        configuration.revision,
+                        configuration.name,
+                        configuration.manifestUrl,
+                        json.writeValueAsString(configuration.manifest),
+                        configuration.enabled,
+                        position,
+                    ),
+                )
+            }
             settings()?.let(::saveSettingsRow)
         }
     }

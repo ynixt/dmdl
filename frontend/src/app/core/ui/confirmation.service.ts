@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { ConfirmationService } from 'primeng/api';
+import { Confirmation, ConfirmationService } from 'primeng/api';
 
 export interface ConfirmationOptions {
   message: string;
@@ -22,10 +22,16 @@ export class AppConfirmationService {
       const settle = (result: boolean): void => {
         if (settled) return;
         settled = true;
+        // PrimeNG 21 can report visibleChange(false) after an action has closed the dialog.
+        // Release its event references so that second close cannot emit into a closed subject.
+        confirmation.acceptEvent?.unsubscribe();
+        confirmation.rejectEvent?.unsubscribe();
+        confirmation.acceptEvent = undefined;
+        confirmation.rejectEvent = undefined;
         resolve(result);
       };
 
-      this.confirmations.confirm({
+      const confirmation: Confirmation = {
         message: options.message,
         header: options.header,
         icon: 'pi pi-exclamation-triangle',
@@ -41,7 +47,8 @@ export class AppConfirmationService {
         dismissableMask: options.dismissible ?? true,
         accept: () => settle(true),
         reject: () => settle(false),
-      });
+      };
+      this.confirmations.confirm(confirmation);
     });
   }
 }

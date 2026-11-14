@@ -48,7 +48,7 @@ class SetupControllerTest {
                 search = listOf(SetupSearchInput(manifestUrl = "https://torrentio.strem.fun/torbox=draft-token/manifest.json")),
             )
         assertTrue(controller.validate(ValidateSetupInput("search", draft)).valid)
-        verify(exactly = 0) { store.saveSearchAddon(any()) }
+        verify(exactly = 0) { store.replaceSearchAddons(any()) }
         verify(exactly = 0) { store.completeSetup(any()) }
     }
 
@@ -73,6 +73,6 @@ class SetupControllerTest {
         val result = controller.validate(ValidateSetupInput("search", draft))
         assertEquals("KZ.ADDON_NOT_FOUND", result.errors["search.0.manifestUrl"])
         assertFalse(result.toString().contains("secret"))
-        verify(exactly = 0) { store.saveSearchAddon(any()) }
+        verify(exactly = 0) { store.replaceSearchAddons(any()) }
     }
 }

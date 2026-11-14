@@ -1,192 +1,66 @@
-<div class="page">
-  <h1>{{ 'KZ.SETTINGS' | translate }}</h1>
-  @if (error()) {
-    <p role="alert" class="error">{{ error() | translate }}</p>
-  }
-  @if (message()) {
-    <p role="status">{{ message() | translate }}</p>
-  }
-  <section class="panel">
-    <h2>{{ 'KZ.METADATA_ADDON' | translate }}</h2>
-    @if (addons.metadata; as metadata) {
-      <p>{{ metadata.name }}</p>
+<main class="page wizard">
+  <header class="wizard-heading">
+    <h1>{{ 'KZ.SETTINGS' | translate }}</h1>
+  </header>
+  <div
+    class="wizard-progress settings-tabs"
+    role="tablist"
+    [attr.aria-label]="'KZ.SETTINGS' | translate"
+  >
+    @for (tab of tabs; track tab.id; let index = $index) {
+      <button
+        type="button"
+        role="tab"
+        [id]="'settings-tab-' + tab.id"
+        [attr.aria-controls]="'settings-panel-' + tab.id"
+        [attr.aria-selected]="activeTab() === tab.id"
+        [tabIndex]="activeTab() === tab.id ? 0 : -1"
+        [class.current]="activeTab() === tab.id"
+        (click)="selectTab(tab.id)"
+        (keydown)="onTabKey($event, index)"
+      >
+        <span class="step-mark" aria-hidden="true"><i [class]="tab.icon"></i></span>
+        <span>{{ 'KZ.SETTINGS_TAB_' + tab.id | translate }}</span>
+        @if (store[tab.id].dirty()) {
+          <span
+            class="unsaved-dot"
+            role="img"
+            [attr.aria-label]="'KZ.UNSAVED_CHANGES' | translate"
+          ></span>
+        }
+      </button>
     }
-    <div class="field">
-      <label for="metadata-name">{{ 'KZ.ADDON_NAME' | translate }}</label>
-      <input pInputText id="metadata-name" [(ngModel)]="metadataName" placeholder="AIOMetadata" />
-    </div>
-    <div class="field">
-      <label for="metadata-url">{{ 'KZ.MANIFEST_URL' | translate }}</label
-      ><input
-        pInputText
-        id="metadata-url"
-        [(ngModel)]="metadataUrl"
-        placeholder="https://…/manifest.json"
-        autocomplete="off"
-      />
-    </div>
-    <p-button
-      [label]="'KZ.SAVE_METADATA' | translate"
-      (onClick)="saveMetadata()"
-      [disabled]="(!metadataUrl && !addons.metadata) || busy()"
-    />
-  </section>
-  <section class="panel">
-    <h2>{{ 'KZ.SEARCH_ADDONS' | translate }}</h2>
-    @for (addon of addons.search; track addon.id; let index = $index) {
-      <div class="panel">
-        <div class="row">
-          <strong>{{ addon.name }}</strong
-          ><span>{{ (addon.enabled ? 'KZ.ENABLED' : 'KZ.DISABLED') | translate }}</span>
-        </div>
-        <div class="row">
-          <p-button
-            [label]="'KZ.EDIT' | translate"
-            severity="secondary"
-            (onClick)="edit(addon)"
-          /><p-button
-            [label]="'KZ.TOGGLE' | translate"
-            severity="secondary"
-            (onClick)="toggle(addon)"
-            [disabled]="busy()"
-          />
-          <p-button
-            icon="pi pi-arrow-up"
-            [ariaLabel]="'KZ.MOVE_UP' | translate"
-            (onClick)="reorder(index, -1)"
-            [disabled]="index === 0 || busy()"
-          /><p-button
-            icon="pi pi-arrow-down"
-            [ariaLabel]="'KZ.MOVE_DOWN' | translate"
-            (onClick)="reorder(index, 1)"
-            [disabled]="index === addons.search.length - 1 || busy()"
-          /><p-button
-            [label]="'KZ.REMOVE' | translate"
-            severity="danger"
-            (onClick)="removeAddon(addon)"
-            [disabled]="busy()"
-          />
-        </div>
-      </div>
-    }
-    <div class="field">
-      <label for="search-name">{{ 'KZ.ADDON_NAME' | translate }}</label>
-      <input
-        pInputText
-        id="search-name"
-        [(ngModel)]="searchName"
-        placeholder="AIOStreams"
-      />
-    </div>
-    <div class="field">
-      <label for="search-url">{{ 'KZ.MANIFEST_URL' | translate }}</label
-      ><input
-        pInputText
-        id="search-url"
-        [(ngModel)]="searchUrl"
-        placeholder="https://…/manifest.json"
-        autocomplete="off"
-      />
-    </div>
-    <div class="form-row">
-      <p-button
-        [label]="(editId ? 'KZ.UPDATE_ADDON' : 'KZ.ADD_ADDON') | translate"
-        (onClick)="saveSearch()"
-        [disabled]="(!searchUrl && !editId) || busy()"
-      />
-    </div>
-    <p class="hint">{{ 'KZ.ADDON_HELP' | translate }}</p>
-  </section>
-  @if (settings; as config) {
-    <section class="panel">
-      <app-stream-badge-fields
-        [value]="config.streamBadgeJson ?? ''"
-        (valueChange)="config.streamBadgeJson = $event"
-        [defaultValue]="defaultBadges"
-        [disabled]="busy()"
-      />
-    </section>
-    <section class="panel">
-      <h2>{{ 'KZ.PREFERENCES' | translate }}</h2>
-      <div class="form-row">
-        <div class="field">
-          <label for="language">{{ 'KZ.LANGUAGE' | translate }}</label>
-          <p-select inputId="language" [options]="languages" [(ngModel)]="config.locale" />
-        </div>
-      </div>
-    </section>
-    <section class="panel">
-      <h2>{{ 'KZ.ORGANIZATION' | translate }}</h2>
-      <p>{{ 'KZ.NEW_REQUESTS_ONLY' | translate }}</p>
-      <p class="hint">{{ 'KZ.PLACEHOLDERS' | translate }}</p>
-      <app-storage-fields [organization]="config.organization" />
-      <p>{{ 'KZ.ORIGINAL_FILENAME_HELP' | translate }}</p>
-      <div class="form-row">
-        <div class="field">
-          <label for="preview-category">{{ 'KZ.PREVIEW' | translate }}</label>
-          <p-select
-            inputId="preview-category"
-            [options]="categories"
-            [(ngModel)]="previewCategory"
-          />
-        </div>
-        <p-button
-          [label]="'KZ.PREVIEW' | translate"
-          (onClick)="preview()"
-          [disabled]="busy()"
-        /><p-button
-          [label]="'KZ.RESTORE_DEFAULTS' | translate"
-          severity="secondary"
-          (onClick)="restore()"
-          [disabled]="busy()"
-        />
-      </div>
-      @if (previewPath()) {
-        <div class="compact-stack">
-          <p class="path">{{ previewPath() }}</p>
-          <p class="hint">{{ 'KZ.SAMPLE_EXTENSION' | translate }}</p>
-        </div>
+  </div>
+  @if (store.loadError()) {
+    <p role="alert" class="error">{{ store.loadError() | translate }}</p>
+  }
+  @if (store.loading()) {
+    <p role="status">{{ 'KZ.LOADING' | translate }}</p>
+  }
+  @if (store.loaded()) {
+    <section
+      class="panel wizard-panel"
+      role="tabpanel"
+      [id]="'settings-panel-' + activeTab()"
+      [attr.aria-labelledby]="'settings-tab-' + activeTab()"
+      tabindex="0"
+    >
+      <h2>{{ 'KZ.SETTINGS_TAB_' + activeTab() | translate }}</h2>
+      @switch (activeTab()) {
+        @case ('metadata') {
+          <app-settings-metadata-tab />
+        }
+        @case ('search') {
+          <app-settings-search-tab />
+        }
+        @case ('storage') {
+          <app-settings-storage-tab />
+        }
+        @case ('jellyfin') {
+          <app-settings-jellyfin-tab />
+        }
       }
     </section>
-    <section class="panel">
-      <h2>{{ 'KZ.TRANSFER_SETTINGS' | translate }}</h2>
-      <app-transfer-fields [settings]="config" />
-    </section>
-    <section class="panel">
-      <h2>{{ 'KZ.JELLYFIN_OPTIONAL' | translate }}</h2>
-      <p>{{ 'KZ.JELLYFIN_HELP' | translate }}</p>
-      <div class="row">
-        <label for="jellyfin-enabled">{{ 'KZ.ENABLED' | translate }}</label
-        ><p-toggleswitch inputId="jellyfin-enabled" [(ngModel)]="config.jellyfin.enabled" />
-      </div>
-      <div class="field">
-        <label for="jellyfin-url">{{ 'KZ.SERVER_URL' | translate }}</label
-        ><input pInputText id="jellyfin-url" [(ngModel)]="config.jellyfin.url" />
-      </div>
-      <div class="field">
-        <label for="jellyfin-token">{{ 'KZ.API_TOKEN' | translate }}</label
-        ><input
-          pInputText
-          id="jellyfin-token"
-          type="password"
-          [(ngModel)]="config.jellyfin.token"
-          autocomplete="new-password"
-        />
-      </div>
-      @if (config.jellyfin.tokenConfigured) {
-        <p>{{ 'KZ.TOKEN_CONFIGURED' | translate }}</p>
-      }
-      <p-button
-        [label]="'KZ.TEST_CONNECTION' | translate"
-        (onClick)="testJellyfin()"
-        [disabled]="!config.jellyfin.url || busy()"
-      />
-    </section>
-    <p-button
-      [label]="'KZ.SAVE_SETTINGS' | translate"
-      icon="pi pi-save"
-      (onClick)="save()"
-      [loading]="busy()"
-    />
   }
-</div>
+</main>
+<p-confirmdialog />

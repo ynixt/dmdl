@@ -83,6 +83,7 @@ export interface Catalog {
 export interface Addon {
   id: string;
   name: string;
+  manifestUrl: string;
   revision: number;
   manifest: {
     name: string;
@@ -120,6 +121,9 @@ export interface SetupSearch {
   manifestUrl: string;
   name?: string;
   enabled: boolean;
+}
+export interface SearchAddonInput extends SetupSearch {
+  id?: string;
 }
 export interface OnboardingDraft {
   settings: {
@@ -163,7 +167,7 @@ export interface Settings {
   storageRoot: string;
   onboardingCompleted: boolean;
   configurationRevision: number;
-  jellyfin: { enabled: boolean; url?: string; tokenConfigured: boolean; token?: string };
+  jellyfin: { enabled: boolean; url?: string | null; token?: string | null };
 }
 export interface Download {
   id: string;

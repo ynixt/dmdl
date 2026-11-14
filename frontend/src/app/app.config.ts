@@ -9,6 +9,7 @@ import { TitleStrategy, provideRouter } from '@angular/router';
 import { provideTranslateService } from '@ngx-translate/core';
 import { provideTranslateHttpLoader } from '@ngx-translate/http-loader';
 import { providePrimeNG } from 'primeng/config';
+import { ConfirmationService } from 'primeng/api';
 import { catchError, map, of, switchMap } from 'rxjs';
 import { routes } from './app.routes';
 import { credentialsInterceptor } from './core/auth/credentials.interceptor';
@@ -21,6 +22,7 @@ import { dmdlPrimeNgTheme } from './core/theme/dmdl.preset';
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    ConfirmationService,
     provideBrowserGlobalErrorListeners(),
     providePrimeNG({
       ripple: true,

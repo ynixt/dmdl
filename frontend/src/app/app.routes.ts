@@ -4,6 +4,7 @@ import { guestGuard } from './core/auth/guest.guard';
 import { onboardingGuard } from './core/auth/onboarding.guard';
 import { registrationGuard } from './core/auth/registration.guard';
 import { ReleasesRoutePage } from './pages/debrid/releases-route.page';
+import { settingsLeaveGuard } from './pages/debrid/settings-leave.guard';
 
 export const routes: Routes = [
   {
@@ -58,6 +59,7 @@ export const routes: Routes = [
     path: 'settings',
     title: 'KZ.SETTINGS',
     canActivate: [authGuard],
+    canDeactivate: [settingsLeaveGuard],
     loadComponent: () =>
       import('./pages/debrid/settings.page').then((module) => module.SettingsPage),
   },

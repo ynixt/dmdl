@@ -114,7 +114,13 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         val metadataKey = redisTemplate.keys("dmdl:meta-v2:${metadata.id}:${metadata.revision}:*").single()
         assertTrue(redisTemplate.getExpire(metadataKey) in 259190..259200)
         assertTrue(redisTemplate.opsForValue().get(metadataKey)!!.contains(details.title))
-        configuration.saveMetadata(metadata.copy(manifestUrl = "${base()}/metadata-replacement/manifest.json"))
+        configuration.saveMetadata(
+            metadata.copy(
+                manifestUrl = "${base()}/metadata-replacement/manifest.json",
+                revision =
+                    metadata.revision + 1,
+            ),
+        )
         val replacement = configuration.metadata()!!
         discovery.search(query)
         assertEquals(beforeSearch + 2, catalogCalls())
@@ -137,7 +143,17 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         discovery.releasePage(content, source.id, 1, true)
         assertEquals(beforeReleases + 2, streamCalls())
         assertTrue(redisTemplate.getExpire(releaseKey) in 86390..86400)
-        configuration.saveSearchAddon(source)
+        configuration.replaceSearchAddons(
+            configuration.searchAddons().map {
+                if (it.id ==
+                    source.id
+                ) {
+                    it.copy(revision = it.revision + 1)
+                } else {
+                    it
+                }
+            },
+        )
         discovery.releasePage(content, source.id, 1, false)
         assertEquals(beforeReleases + 3, streamCalls())
 
@@ -798,13 +814,14 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
             exchange.responseBody.use { it.write(body) }
         }
         try {
-            configuration.searchAddons().forEach { configuration.removeSearchAddon(it.id) }
-            configuration.saveSearchAddon(
-                AddonConfiguration(
-                    UUID.randomUUID(),
-                    1,
-                    "${base()}/progress-addon/manifest.json",
-                    gateway.manifest("${base()}/progress-addon/manifest.json"),
+            configuration.replaceSearchAddons(
+                listOf(
+                    AddonConfiguration(
+                        UUID.randomUUID(),
+                        1,
+                        "${base()}/progress-addon/manifest.json",
+                        gateway.manifest("${base()}/progress-addon/manifest.json"),
+                    ),
                 ),
             )
             val movie = content(MediaCategory.MOVIE)
@@ -931,21 +948,20 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
                 gateway.manifest("${base()}/metadata/manifest.json"),
             )
         configuration.saveMetadata(metadata)
-        configuration.searchAddons().forEach { configuration.removeSearchAddon(it.id) }
-        listOf("slow", "fast", "error", "imdb").forEachIndexed {
-            index,
-            name,
-            ->
-            configuration.saveSearchAddon(
+        configuration.replaceSearchAddons(
+            listOf("slow", "fast", "error", "imdb").mapIndexed {
+                index,
+                name,
+                ->
                 AddonConfiguration(
                     UUID.randomUUID(),
                     1,
                     "${base()}/$name/manifest.json",
                     gateway.manifest("${base()}/$name/manifest.json"),
                     position = index,
-                ),
-            )
-        }
+                )
+            },
+        )
         configuration.saveSettings(
             configuration.settings()!!.copy(
                 organization = OrganizationSettings(categories = OrganizationSettings.defaults(media.toString())),

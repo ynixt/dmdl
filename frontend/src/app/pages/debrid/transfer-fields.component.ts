@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -46,7 +46,7 @@ import { Settings } from '../../services/debrid-api.service';
               min="1"
               [max]="config.maxConcurrentDownloads"
               [ngModel]="config.transfer.maxConcurrentPerDebrid ?? 1"
-              (ngModelChange)="config.transfer.maxConcurrentPerDebrid = $event"
+              (ngModelChange)="config.transfer.maxConcurrentPerDebrid = $event; changed.emit()"
             />
           </div>
         }
@@ -77,16 +77,18 @@ import { Settings } from '../../services/debrid-api.service';
             min="1"
             max="1024"
             [(ngModel)]="config.transfer.minSplitSizeMib"
+            (ngModelChange)="changed.emit()"
           />
         </div>
       </div>
       <div class="field">
         <div class="row">
           <p-checkbox
+            [disabled]="disabled()"
             [inputId]="prefix() + '-lowest-speed-enabled'"
             [binary]="true"
             [ngModel]="config.transfer.lowestSpeedLimitEnabled ?? false"
-            (ngModelChange)="config.transfer.lowestSpeedLimitEnabled = $event"
+            (ngModelChange)="config.transfer.lowestSpeedLimitEnabled = $event; changed.emit()"
           />
           <label [for]="prefix() + '-lowest-speed-enabled'">{{
             'KZ.LOWEST_SPEED_ENABLED' | translate
@@ -107,7 +109,7 @@ import { Settings } from '../../services/debrid-api.service';
               min="1"
               max="1048576"
               [ngModel]="config.transfer.lowestSpeedLimitKib ?? 50"
-              (ngModelChange)="config.transfer.lowestSpeedLimitKib = $event"
+              (ngModelChange)="config.transfer.lowestSpeedLimitKib = $event; changed.emit()"
             />
           </div>
         }
@@ -120,7 +122,7 @@ import { Settings } from '../../services/debrid-api.service';
             min="0"
             max="4096"
             [ngModel]="config.transfer.diskCacheMib ?? 64"
-            (ngModelChange)="config.transfer.diskCacheMib = $event"
+            (ngModelChange)="config.transfer.diskCacheMib = $event; changed.emit()"
           />
         </div>
       </div>
@@ -134,7 +136,7 @@ import { Settings } from '../../services/debrid-api.service';
             min="1"
             max="600"
             [ngModel]="config.transfer.timeoutSeconds ?? 60"
-            (ngModelChange)="config.transfer.timeoutSeconds = $event"
+            (ngModelChange)="config.transfer.timeoutSeconds = $event; changed.emit()"
           />
         </div>
         <div class="field">
@@ -146,6 +148,7 @@ import { Settings } from '../../services/debrid-api.service';
             min="0"
             max="100"
             [(ngModel)]="config.transfer.maxTries"
+            (ngModelChange)="changed.emit()"
           />
         </div>
       </div>
@@ -159,6 +162,7 @@ import { Settings } from '../../services/debrid-api.service';
             min="0"
             max="600"
             [(ngModel)]="config.transfer.retryWaitSeconds"
+            (ngModelChange)="changed.emit()"
           />
         </div>
         <div class="field">
@@ -172,7 +176,7 @@ import { Settings } from '../../services/debrid-api.service';
             min="0"
             max="100"
             [ngModel]="config.transfer.maxFileNotFound ?? 2"
-            (ngModelChange)="config.transfer.maxFileNotFound = $event"
+            (ngModelChange)="config.transfer.maxFileNotFound = $event; changed.emit()"
           />
         </div>
       </div>
@@ -180,17 +184,21 @@ import { Settings } from '../../services/debrid-api.service';
         <div class="field">
           <label [for]="prefix() + '-allocation'">{{ 'KZ.ALLOCATION' | translate }}</label>
           <p-select
+            [disabled]="disabled()"
             [inputId]="prefix() + '-allocation'"
             [options]="allocations"
             [(ngModel)]="config.transfer.fileAllocation"
+            (ngModelChange)="changed.emit()"
             appendTo="body"
           />
         </div>
         <div class="field">
           <label [for]="prefix() + '-ipv6'">IPv6</label>
           <p-toggleswitch
+            [disabled]="disabled()"
             [inputId]="prefix() + '-ipv6'"
             [(ngModel)]="config.transfer.ipv6Enabled"
+            (ngModelChange)="changed.emit()"
           />
         </div>
       </div>
@@ -198,6 +206,8 @@ import { Settings } from '../../services/debrid-api.service';
   `,
 })
 export class TransferFieldsComponent {
+  readonly disabled = input(false);
+  readonly changed = output<void>();
   readonly settings = input.required<Pick<Settings, 'maxConcurrentDownloads' | 'transfer'>>();
   readonly prefix = input('transfer');
   readonly allocations = ['NONE', 'PREALLOC', 'TRUNC', 'FALLOC'];
@@ -205,6 +215,7 @@ export class TransferFieldsComponent {
   changeConnections(connections: number): void {
     this.settings().transfer.maxConnectionPerServer = connections;
     this.settings().transfer.split = connections;
+    this.changed.emit();
   }
 
   changeConcurrency(concurrency: number): void {
@@ -213,5 +224,6 @@ export class TransferFieldsComponent {
       this.settings().transfer.maxConcurrentPerDebrid ?? 1,
       concurrency,
     );
+    this.changed.emit();
   }
 }

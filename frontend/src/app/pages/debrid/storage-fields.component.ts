@@ -34,7 +34,7 @@ import { DirectoryPickerComponent } from './directory-picker.component';
                   pInputText
                   [id]="prefix + '-name-' + destination.id"
                   [(ngModel)]="destination.name"
-                  (blur)="changed.emit()"
+                  (ngModelChange)="changed.emit()"
                 />
               </div>
               <div class="field">
@@ -46,7 +46,7 @@ import { DirectoryPickerComponent } from './directory-picker.component';
                     pInputText
                     [id]="prefix + '-path-' + destination.id"
                     [(ngModel)]="destination.path"
-                    (blur)="changed.emit()"
+                    (ngModelChange)="changed.emit()"
                     placeholder="/media/…"
                   />
                   <app-directory-picker
@@ -79,6 +79,7 @@ import { DirectoryPickerComponent } from './directory-picker.component';
                 'KZ.DEFAULT_DESTINATION' | translate
               }}</label>
               <p-select
+                [disabled]="disabled"
                 [inputId]="prefix + '-default-' + category"
                 [options]="config.destinations"
                 optionLabel="name"
@@ -96,7 +97,7 @@ import { DirectoryPickerComponent } from './directory-picker.component';
                 pInputText
                 [id]="prefix + '-folder-' + category"
                 [(ngModel)]="config.folderTemplate"
-                (blur)="changed.emit()"
+                (ngModelChange)="changed.emit()"
               />
             </div>
           }
@@ -107,6 +108,7 @@ import { DirectoryPickerComponent } from './directory-picker.component';
   styleUrl: './debrid.scss',
 })
 export class StorageFieldsComponent {
+  @Input() disabled = false;
   @Input({ required: true }) organization!: Organization;
   @Input() prefix = 'storage';
   readonly changed = output<void>();

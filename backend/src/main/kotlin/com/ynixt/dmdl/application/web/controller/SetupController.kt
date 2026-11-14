@@ -72,6 +72,7 @@ class SetupController(
     private val json: ObjectMapper,
 ) {
     private val validation = ConfigurationValidation(addons, finalizer)
+    private val searchValidator = SearchAddonValidator(validation)
 
     @PostMapping("/validate")
     fun validate(
@@ -156,14 +157,12 @@ class SetupController(
             check("search.streamBadgeJson") {
                 StreamBadgeRules.parse(input.streamBadgeJson ?: old.streamBadgeJson)
             }
-            check("search") {
-                if (draft.search.none { it.enabled }) throw AddonFailure("Enable a search addon", "KZ.ADDON_SEARCH_REQUIRED")
-            }
-            draft.search.forEachIndexed { index, source ->
-                check("search.$index.manifestUrl") {
-                    search.add(validation.addon(source.manifestUrl, false, index, source.enabled, source.name))
-                }
-            }
+            val (searchErrors, preparedSearch) =
+                searchValidator.prepare(
+                    draft.search.map { SearchAddonInput(manifestUrl = it.manifestUrl, enabled = it.enabled, name = it.name) },
+                )
+            errors.putAll(searchErrors)
+            search.addAll(preparedSearch)
         }
         if (all || step == "storage") {
             check("storage") {

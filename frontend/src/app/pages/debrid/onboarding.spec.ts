@@ -45,7 +45,7 @@ describe('Onboarding wizard', () => {
       fileAllocation: 'PREALLOC',
       ipv6Enabled: true,
     },
-    jellyfin: { enabled: false, tokenConfigured: false },
+    jellyfin: { enabled: false, token: '' },
   });
   const api = { get: vi.fn(), post: vi.fn() };
   const auth = { refreshSession: vi.fn(async () => true) };
@@ -112,6 +112,30 @@ describe('Onboarding wizard', () => {
     expect(fixture.nativeElement.querySelector('#setup-token-TORBOX')).toBeNull();
     expect(page.payload().settings.organization.categories.MOVIE.destinations).toHaveLength(1);
     expect(page.payload().settings.jellyfin.enabled).toBe(false);
+  });
+
+  it('pre-fills the returned Jellyfin token', async () => {
+    api.get.mockImplementation(async (path: string) =>
+      path === '/settings'
+        ? {
+            ...settings(),
+            jellyfin: { enabled: true, url: 'https://jellyfin', token: 'stored-token' },
+          }
+        : { streamBadgeJson: '{"imports":[]}' },
+    );
+    const fixture = TestBed.createComponent(OnboardingPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await vi.waitFor(() =>
+      expect(fixture.componentInstance.draft?.settings.jellyfin.token).toBe('stored-token'),
+    );
+    fixture.componentInstance.step.set(3);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#setup-jellyfin-token').value).toBe('stored-token');
   });
 
   it('edits and restores badge JSON in draft and submits it only at completion', async () => {

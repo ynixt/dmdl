@@ -38,7 +38,7 @@ import { StreamBadgeFieldsComponent } from './stream-badge-fields.component';
     SecretInputComponent,
   ],
   templateUrl: './onboarding.page.html',
-  styleUrls: ['./debrid.scss', './onboarding.scss'],
+  styleUrls: ['./debrid.scss', './wizard.scss'],
 })
 export class OnboardingPage implements OnInit {
   private readonly api = inject(DebridApi);
@@ -85,7 +85,11 @@ export class OnboardingPage implements OnInit {
           maxConcurrentDownloads: settings.maxConcurrentDownloads,
           organization: settings.organization,
           transfer: settings.transfer,
-          jellyfin: { enabled: false, url: '', token: '' },
+          jellyfin: {
+            enabled: settings.jellyfin.enabled,
+            url: settings.jellyfin.url ?? '',
+            token: settings.jellyfin.token ?? '',
+          },
         },
         metadataUrl: '',
         metadataName: '',

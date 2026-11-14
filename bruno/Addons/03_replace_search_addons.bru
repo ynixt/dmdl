@@ -1,0 +1,31 @@
+meta {
+  name: Replace search addons
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/api/addons/search
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  [
+    {
+      "name": "Search addon",
+      "manifestUrl": "{{searchManifestUrl}}",
+      "enabled": true
+    }
+  ]
+}
+
+docs {
+  Replaces the complete ordered list. Include `id` for existing entries to preserve
+  their identity and revision; omit an existing entry to remove it. Array order
+  defines position. At least one entry must be enabled. A URL is required on every row.
+}

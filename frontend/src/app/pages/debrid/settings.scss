@@ -1,0 +1,41 @@
+.settings-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.settings-tabs button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  min-width: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.settings-tabs button:hover {
+  background: var(--p-content-hover-background);
+}
+.settings-tabs button:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+.step-mark {
+  flex-shrink: 0;
+}
+.unsaved-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--p-primary-color);
+}
+@media (max-width: 650px) {
+  .settings-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

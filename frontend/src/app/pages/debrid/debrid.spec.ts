@@ -7,6 +7,8 @@ import { DebridApi, Metadata, ReleaseGroup } from '../../services/debrid-api.ser
 import { DiscoveryPage } from './discovery.page';
 import { ReleasesPage } from './releases.page';
 import { SettingsPage } from './settings.page';
+import { AppConfirmationService } from '../../core/ui/confirmation.service';
+import { ConfirmationService } from 'primeng/api';
 
 describe('Manual discovery journey', () => {
   const source = '00000000-0000-0000-0000-000000000001';
@@ -96,7 +98,7 @@ describe('Manual discovery journey', () => {
             fileAllocation: 'PREALLOC',
             ipv6Enabled: true,
           },
-          jellyfin: { enabled: false, tokenConfigured: false },
+          jellyfin: { enabled: false, token: '' },
         };
       if (path.startsWith('/discovery/content?'))
         return {
@@ -166,7 +168,9 @@ describe('Manual discovery journey', () => {
           },
         },
         provideTranslateService(),
+        ConfirmationService,
         { provide: DebridApi, useValue: api },
+        { provide: AppConfirmationService, useValue: { confirm: vi.fn() } },
       ],
     });
     vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -244,6 +248,9 @@ describe('Manual discovery journey', () => {
   });
   it('renders asynchronous settings and organization fields without user interaction', async () => {
     const fixture = TestBed.createComponent(SettingsPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.componentInstance.selectTab('storage');
     fixture.detectChanges();
     await fixture.whenStable();
     await vi.waitFor(() =>
