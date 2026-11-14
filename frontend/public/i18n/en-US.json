@@ -6,6 +6,15 @@
     "LOADING": "Loading"
   },
   "PAGES": {
+    "OFFLINE": {
+      "TITLE": "Server unavailable",
+      "STARTING": "The server is starting. This page will continue automatically when it is ready.",
+      "NOT_RESPONDING": "The server is not responding. Trying to reconnect automatically.",
+      "UNREACHABLE": "Could not connect to the API. Trying to connect automatically.",
+      "CONNECTION_LOST": "The connection to the API was lost. Trying to reconnect automatically.",
+      "RETRY": "Try again",
+      "RETRY_IN": "Trying again in {{seconds}} s"
+    },
     "LOGIN": {
       "TITLE": "Login",
       "SUBTITLE": "Sign in to Debrid Media Downloader.",

@@ -15,19 +15,15 @@ import {
   throwError,
 } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import {
-  LoginRequest,
-  LoginResponse,
-  RegisterRequest,
-  RegistrationStatus,
-  SessionResponse,
-} from './auth.models';
+import { ApiAvailabilityService } from '../api-availability.service';
+import { LoginRequest, LoginResponse, RegisterRequest, SessionResponse } from './auth.models';
 
 type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly availability = inject(ApiAvailabilityService);
   private readonly injector = inject(Injector);
   private readonly authStatus = signal<AuthStatus>('unknown');
   private readonly username = signal<string | null>(null);
@@ -107,44 +103,46 @@ export class AuthService {
     return this.resolveSession();
   }
 
+  invalidateSession(): void {
+    this.authStatus.set('unknown');
+  }
+
   private fetchSession(): Observable<boolean> {
     if (this.sessionCheckRequest) {
       return this.sessionCheckRequest;
     }
 
-    this.sessionCheckRequest = this.http
-      .get<RegistrationStatus>(`${environment.apiBaseUrl}/auth/registration`)
-      .pipe(
-        tap((status) => this.registrationNeeded.set(status.registrationRequired)),
-        switchMap((status) =>
-          status.registrationRequired
-            ? of(null)
-            : this.http.get<SessionResponse>(`${environment.apiBaseUrl}/auth/session`),
-        ),
-        map((session) => {
-          if (session === null) {
-            this.clearSession();
-            return false;
-          }
-          this.authStatus.set('authenticated');
-          this.username.set(session.username);
-          this.backendLocale.set(session.locale ?? null);
-          this.onboardingCompleted.set(session.onboardingCompleted ?? null);
-          return true;
-        }),
-        catchError((error: HttpErrorResponse) => {
-          if (error.status === 401 || error.status === 403) {
-            this.clearSession();
-            return of(false);
-          }
+    this.sessionCheckRequest = this.availability.probe().pipe(
+      tap((status) => this.registrationNeeded.set(status.registrationRequired)),
+      switchMap((status) =>
+        status.registrationRequired
+          ? of(null)
+          : this.http.get<SessionResponse>(`${environment.apiBaseUrl}/auth/session`),
+      ),
+      map((session) => {
+        if (session === null) {
+          this.clearSession();
+          return false;
+        }
+        this.authStatus.set('authenticated');
+        this.username.set(session.username);
+        this.backendLocale.set(session.locale ?? null);
+        this.onboardingCompleted.set(session.onboardingCompleted ?? null);
+        return true;
+      }),
+      catchError((error: HttpErrorResponse) => {
+        if (error.status === 401 || error.status === 403) {
+          this.clearSession();
+          return of(false);
+        }
 
-          return throwError(() => error);
-        }),
-        finalize(() => {
-          this.sessionCheckRequest = undefined;
-        }),
-        shareReplay({ bufferSize: 1, refCount: false }),
-      );
+        return throwError(() => error);
+      }),
+      finalize(() => {
+        this.sessionCheckRequest = undefined;
+      }),
+      shareReplay({ bufferSize: 1, refCount: false }),
+    );
 
     return this.sessionCheckRequest;
   }

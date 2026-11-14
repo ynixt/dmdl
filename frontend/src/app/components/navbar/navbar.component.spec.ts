@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideTranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { NavbarComponent } from './navbar.component';
@@ -53,5 +53,16 @@ describe('Onboarding navigation', () => {
     const fixture = TestBed.createComponent(NavbarComponent);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('nav')).toBeNull();
+  });
+
+  it('hides logout on the offline page while keeping guarded navigation links', () => {
+    completed.set(true);
+    vi.spyOn(TestBed.inject(Router), 'url', 'get').mockReturnValue(
+      '/offline?returnUrl=%2Fdownloads',
+    );
+    const fixture = TestBed.createComponent(NavbarComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('nav a')).toHaveLength(3);
+    expect(fixture.nativeElement.querySelector('nav button')).toBeNull();
   });
 });
