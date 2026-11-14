@@ -89,6 +89,22 @@ open class IntegrationEnvironment {
                         var status = 200
                         val response: Any =
                             when {
+                                // Like Jellyfin 10.11+, accept only the "Authorization: MediaBrowser" scheme.
+                                path.startsWith("/jellyfin/") &&
+                                    exchange.requestHeaders.getFirst("Authorization")?.let {
+                                        it.startsWith("MediaBrowser ") && it.contains("Token=\"fixture-token\"")
+                                    } != true -> {
+                                    status = 401
+                                    emptyMap<String, String>()
+                                }
+
+                                // A server that only understands the legacy token header.
+                                path.startsWith("/jellyfin-legacy/") &&
+                                    exchange.requestHeaders.getFirst("X-Emby-Token") != "fixture-token" -> {
+                                    status = 401
+                                    emptyMap<String, String>()
+                                }
+
                                 path.endsWith("/manifest.json") -> {
                                     if (path.startsWith("/metadata")) {
                                         mapOf(

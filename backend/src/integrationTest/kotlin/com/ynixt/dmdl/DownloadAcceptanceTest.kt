@@ -474,6 +474,32 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
             ).statusCode(),
         )
         assertEquals(listOf("GET /jellyfin/System/Info"), calls.drop(start).filter { it.contains("/jellyfin/") })
+        val legacyStart = calls.size
+        assertEquals(
+            200,
+            request(
+                "/api/settings/jellyfin/test",
+                mapOf(
+                    "enabled" to false,
+                    "url" to "${base()}/jellyfin-legacy",
+                    "token" to "fixture-token",
+                ),
+            ).statusCode(),
+        )
+        assertEquals(
+            listOf("GET /jellyfin-legacy/System/Info", "GET /jellyfin-legacy/System/Info"),
+            calls.drop(legacyStart).filter { it.contains("/jellyfin-legacy/") },
+        )
+        assertTrue(
+            request(
+                "/api/settings/jellyfin/test",
+                mapOf(
+                    "enabled" to false,
+                    "url" to "${base()}/jellyfin",
+                    "token" to "wrong-token",
+                ),
+            ).statusCode() !in 200..299,
+        )
         val events =
             client.send(
                 HttpRequest.newBuilder(URI("$origin/api/downloads/events")).GET().build(),
