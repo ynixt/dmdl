@@ -29,6 +29,22 @@
             {{ request.content.episodeTitle }}
           </p>
         }
+        <p class="download-times">
+          <span class="requested-at"
+            >{{ 'KZ.REQUESTED_AT' | translate }} ·
+            <time [attr.datetime]="request.createdAt">{{
+              request.createdAt | date: 'short'
+            }}</time></span
+          >
+          @if (request.startedAt) {
+            <span class="started-at"
+              >{{ 'KZ.STARTED_AT' | translate }} ·
+              <time [attr.datetime]="request.startedAt">{{
+                request.startedAt | date: 'short'
+              }}</time></span
+            >
+          }
+        </p>
       </div>
       @if (request.state !== 'CANCELLED' && !cancelling(request)) {
         <div class="compact-stack transfer-metrics">
@@ -102,6 +118,9 @@
               <p class="hint">{{ 'KZ.CONNECTION_SPEEDS_UNAVAILABLE' | translate }}</p>
             }
           }
+          @if (request.state === 'TRANSFERRING' && speedPoints()[request.id]; as points) {
+            <app-download-speed-chart [samples]="points" />
+          }
         </div>
       }
       @if (request.error) {
@@ -165,11 +184,16 @@
             [loading]="cancelling(request)"
           />
         }
-        <p-button
-          [label]="'KZ.HISTORY' | translate"
+        <button
+          pButton
+          type="button"
           severity="secondary"
-          (onClick)="loadHistory(request.id)"
-        />
+          [attr.aria-expanded]="!!history()[request.id]"
+          [attr.aria-controls]="'events-' + request.id"
+          (click)="toggleHistory(request.id)"
+        >
+          {{ (history()[request.id] ? 'KZ.HIDE_EVENTS' : 'KZ.HISTORY') | translate }}
+        </button>
       </div>
       @if (item.notification; as notification) {
         <div class="compact-stack notification">
@@ -191,7 +215,7 @@
         </div>
       }
       @if (history()[request.id]; as events) {
-        <ol class="event-list">
+        <ol class="event-list" [id]="'events-' + request.id">
           @for (event of events; track event.id) {
             <li>
               {{ event.occurredAt | date: 'short' }} — {{ 'KZ.STATE_' + event.state | translate }}

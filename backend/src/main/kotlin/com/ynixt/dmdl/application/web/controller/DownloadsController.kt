@@ -10,6 +10,7 @@ import com.ynixt.dmdl.domain.model.DownloadStatusUpdate
 import com.ynixt.dmdl.domain.model.MediaCategory
 import com.ynixt.dmdl.domain.model.ReleaseGroup
 import com.ynixt.dmdl.domain.model.ReleasePage
+import com.ynixt.dmdl.domain.model.SpeedSample
 import com.ynixt.dmdl.domain.model.StreamBadgeRules
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import com.ynixt.dmdl.domain.repository.DownloadStore
@@ -19,6 +20,7 @@ import com.ynixt.dmdl.domain.service.DownloadService
 import com.ynixt.dmdl.domain.service.NotificationService
 import org.springframework.context.event.ContextClosedEvent
 import org.springframework.context.event.EventListener
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -137,6 +139,11 @@ class DownloadsController(
     fun history(
         @PathVariable id: UUID,
     ) = store.events(id)
+
+    @GetMapping("/downloads/{id}/speed-history")
+    fun speedHistory(
+        @PathVariable id: UUID,
+    ): ResponseEntity<List<SpeedSample>> = downloads.speedHistory(id)?.let { ResponseEntity.ok(it) } ?: ResponseEntity.notFound().build()
 
     @PostMapping("/downloads/{id}/control")
     fun control(

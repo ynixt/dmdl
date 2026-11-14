@@ -5,6 +5,7 @@ import com.ynixt.dmdl.domain.model.DownloadControl
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadWakeUp
 import com.ynixt.dmdl.domain.model.ReleaseSnapshot
+import com.ynixt.dmdl.domain.model.SpeedSample
 import java.util.UUID
 
 interface DownloadService {
@@ -13,6 +14,9 @@ interface DownloadService {
     fun removeFinishedFromHistory(id: UUID? = null): Int
 
     fun find(id: UUID): DownloadRequest?
+
+    /** Recorded speed samples oldest first, or null when the download does not exist. */
+    fun speedHistory(id: UUID): List<SpeedSample>?
 
     fun submit(
         content: ContentSnapshot,

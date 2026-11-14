@@ -24,15 +24,19 @@ import com.ynixt.dmdl.domain.model.OrganizationSnapshot
 import com.ynixt.dmdl.domain.model.PlacementState
 import com.ynixt.dmdl.domain.model.ReleaseReferenceType
 import com.ynixt.dmdl.domain.model.ReleaseSnapshot
+import com.ynixt.dmdl.domain.model.SpeedSample
 import com.ynixt.dmdl.domain.queue.producer.DownloadWakeUpProducer
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import com.ynixt.dmdl.domain.repository.DownloadStore
 import com.ynixt.dmdl.domain.service.DiscoveryService
 import com.ynixt.dmdl.domain.service.DownloadService
+import com.ynixt.dmdl.resource.cache.DownloadSpeedHistory
 import com.ynixt.dmdl.resource.cache.LiveDownloadProgress
 import org.springframework.stereotype.Service
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
@@ -47,9 +51,11 @@ class DownloadServiceImpl(
     private val finalizer: FileFinalizer,
     private val producer: DownloadWakeUpProducer,
     private val progress: LiveDownloadProgress,
+    private val speedHistory: DownloadSpeedHistory,
     private val storage: StorageProperties,
     private val aria2Properties: Aria2Properties,
     private val allocation: AllocationProgressSource? = null,
+    private val clock: Clock = Clock.systemUTC(),
 ) : DownloadService {
     private val owner = UUID.randomUUID()
     private val transferLocks = Array(64) { ReentrantLock() }
@@ -58,9 +64,18 @@ class DownloadServiceImpl(
 
     override fun history(): List<DownloadRequest> = store.history(visibleOnly = true).map(::withLiveProgress)
 
-    override fun removeFinishedFromHistory(id: UUID?): Int = store.removeFinishedFromHistory(id)
+    override fun removeFinishedFromHistory(id: UUID?): Int {
+        val finished =
+            store
+                .history(visibleOnly = true)
+                .filter { it.state in setOf(DownloadState.COMPLETED, DownloadState.CANCELLED) && (id == null || it.id == id) }
+                .map { it.id }
+        return store.removeFinishedFromHistory(id).also { finished.forEach(speedHistory::delete) }
+    }
 
     override fun find(id: UUID): DownloadRequest? = store.find(id)?.let(::withLiveProgress)
+
+    override fun speedHistory(id: UUID): List<SpeedSample>? = store.find(id)?.let { speedHistory.find(id) }
 
     private fun withLiveProgress(request: DownloadRequest): DownloadRequest =
         if (request.state == DownloadState.TRANSFERRING) {
@@ -188,6 +203,7 @@ class DownloadServiceImpl(
         }
         val changed =
             store.changeState(id, generation, state) ?: throw DownloadFailure("Download state changed; refresh before applying this action")
+        if (state == DownloadState.CANCELLED) speedHistory.delete(id)
         if (state == DownloadState.PAUSED) {
             before.execution.aria2Gid?.let { gid ->
                 runCatching {
@@ -275,8 +291,15 @@ class DownloadServiceImpl(
         var request = store.find(message.requestId) ?: return
 
         fun save(updated: DownloadRequest) {
-            if (!store.checkpoint(updated.copy(updatedAt = Instant.now()))) throw DownloadFailure("Execution ownership changed")
-            request = updated
+            val stamped =
+                if (updated.state == DownloadState.TRANSFERRING && updated.startedAt == null) {
+                    updated.copy(startedAt = clock.instant())
+                } else {
+                    updated
+                }
+            if (!store.checkpoint(stamped.copy(updatedAt = Instant.now()))) throw DownloadFailure("Execution ownership changed")
+            request = stamped
+            if (stamped.state == DownloadState.COMPLETED) speedHistory.delete(stamped.id)
         }
         try {
             require(request.release.reference.type == ReleaseReferenceType.PROVIDER_HTTP) { "KZ.ADDON_HTTP_REQUIRED" }
@@ -321,6 +344,8 @@ class DownloadServiceImpl(
                 }
             }
             var lastWrite = 0L
+            // Each execution starts a fresh sampling window, so a restart loses at most one interval.
+            var lastSample = clock.millis()
             while (owned(request)) {
                 val status = findTransfer(gid)
                 if (status == null) {
@@ -380,6 +405,17 @@ class DownloadServiceImpl(
                     setOf(Aria2TransferState.REMOVED, Aria2TransferState.UNKNOWN)
                 ) {
                     throw DownloadFailure("aria2 task is unavailable; retry the request")
+                }
+                if (status.state == Aria2TransferState.ACTIVE && clock.millis() - lastSample >= SPEED_SAMPLE_INTERVAL.toMillis()) {
+                    lastSample = clock.millis()
+                    speedHistory.append(
+                        request.id,
+                        SpeedSample(
+                            clock.instant(),
+                            if (live.allocation != null) 0 else live.speedBytesPerSecond,
+                            live.connections ?: 0,
+                        ),
+                    )
                 }
                 if (System.currentTimeMillis() - lastWrite >= aria2Properties.progressPublicationInterval.toMillis().coerceAtLeast(1000)) {
                     save(request.copy(progress = live))
@@ -524,4 +560,8 @@ class DownloadServiceImpl(
             is DownloadFailure, is IllegalArgumentException -> error.message ?: "Download failed validation"
             else -> "Download could not continue; check storage, aria2 and the addon link before retrying"
         }
+
+    private companion object {
+        val SPEED_SAMPLE_INTERVAL: Duration = Duration.ofSeconds(30)
+    }
 }
