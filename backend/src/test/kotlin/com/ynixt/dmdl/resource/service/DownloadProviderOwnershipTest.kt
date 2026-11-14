@@ -78,6 +78,7 @@ class DownloadProviderOwnershipTest {
                 mockk(relaxed = true),
                 mockk(relaxed = true),
                 mockk(relaxed = true),
+                mockk(relaxed = true),
                 StorageProperties(),
                 Aria2Properties(),
             )

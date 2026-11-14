@@ -55,6 +55,13 @@
 .download-summary h2 {
   flex: 1 1 20rem;
 }
+.download-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
 .connection-speeds {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));

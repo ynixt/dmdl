@@ -25,8 +25,10 @@ import com.ynixt.dmdl.domain.model.ReleaseProvenance
 import com.ynixt.dmdl.domain.model.ReleaseReference
 import com.ynixt.dmdl.domain.model.ReleaseReferenceType
 import com.ynixt.dmdl.domain.model.ReleaseSnapshot
+import com.ynixt.dmdl.domain.model.SpeedSample
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import com.ynixt.dmdl.domain.repository.DownloadStore
+import com.ynixt.dmdl.resource.cache.DownloadSpeedHistory
 import com.ynixt.dmdl.resource.cache.LiveDownloadProgress
 import com.ynixt.dmdl.resource.gateway.files.ValidatedFileFinalizer
 import io.mockk.Runs
@@ -40,16 +42,22 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -58,6 +66,8 @@ class DownloadLifecycleTest {
     private val store = mockk<DownloadStore>(relaxed = true)
     private val aria = mockk<Aria2Gateway>(relaxed = true)
     private val progress = mockk<LiveDownloadProgress>()
+    private val speedHistory = mockk<DownloadSpeedHistory>(relaxed = true)
+    private val clock = MutableClock(Instant.parse("2026-11-14T14:41:00Z"))
     private val configuration = mockk<ConfigurationStore>()
     private val finalizer = spyk(ValidatedFileFinalizer())
     private lateinit var current: AtomicReference<DownloadRequest>
@@ -144,18 +154,130 @@ class DownloadLifecycleTest {
         every { aria.forceRemove(any()) } answers { removed.set(true) }
         every { aria.removeDownloadResult(any()) } answers { created.set(false) }
         every { configuration.settings() } returns ApplicationSettings("fixture", "hash")
-        service =
-            DownloadServiceImpl(
-                store,
-                configuration,
-                mockk(),
-                aria,
-                finalizer,
-                mockk(relaxed = true),
-                progress,
-                StorageProperties(root.toString()),
-                Aria2Properties(),
-            )
+        service = service(Aria2Properties())
+    }
+
+    private fun service(properties: Aria2Properties) =
+        DownloadServiceImpl(
+            store,
+            configuration,
+            mockk(),
+            aria,
+            finalizer,
+            mockk(relaxed = true),
+            progress,
+            speedHistory,
+            StorageProperties(root.toString()),
+            properties,
+            clock = clock,
+        )
+
+    private class MutableClock(
+        start: Instant,
+    ) : Clock() {
+        private val millis = AtomicLong(start.toEpochMilli())
+
+        fun advance(duration: Duration): Instant = Instant.ofEpochMilli(millis.addAndGet(duration.toMillis()))
+
+        override fun instant(): Instant = Instant.ofEpochMilli(millis.get())
+
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+
+        override fun withZone(zone: ZoneId): Clock = this
+    }
+
+    private fun transferStatus(
+        id: UUID,
+        state: Aria2TransferState = Aria2TransferState.ACTIVE,
+    ) = Aria2TransferStatus(
+        "abcdef0123456789",
+        state,
+        4096,
+        1024,
+        512,
+        if (state == Aria2TransferState.ERROR) "2" else null,
+        null,
+        "/downloads/.dmdl/$id",
+        emptyList(),
+        connections = 8,
+    )
+
+    @Test
+    fun `first transfer sets started timestamp and a retry after failure keeps it`() {
+        val request = current.get()
+        assertNull(request.startedAt)
+        val firstStart = clock.instant()
+        every { aria.findStatus(any()) } returnsMany
+            listOf(transferStatus(request.id), transferStatus(request.id), transferStatus(request.id, Aria2TransferState.ERROR))
+        service.execute(DownloadWakeUp(request.id, 1))
+        assertEquals(DownloadState.FAILED, current.get().state)
+        assertEquals(firstStart, current.get().startedAt)
+
+        clock.advance(Duration.ofMinutes(29))
+        val retried = service.control(request.id, current.get().execution.generation, DownloadControl.RETRY)
+        assertEquals(DownloadState.QUEUED, retried.state)
+        current.set(
+            current.get().copy(
+                state = DownloadState.PREPARING,
+                execution = current.get().execution.copy(generation = 3, owner = UUID.randomUUID()),
+            ),
+        )
+        every { aria.findStatus(any()) } returnsMany
+            listOf(transferStatus(request.id), transferStatus(request.id), transferStatus(request.id, Aria2TransferState.ERROR))
+        service.execute(DownloadWakeUp(request.id, 3))
+        assertEquals(3, current.get().execution.generation)
+        assertEquals(DownloadState.FAILED, current.get().state)
+        assertEquals(firstStart, current.get().startedAt)
+    }
+
+    @Test
+    fun `a 95 second transfer records a speed sample every 30 seconds and a failure keeps the history`() {
+        val request = current.get()
+        val loopStart = AtomicLong(-1)
+        every { aria.findStatus(any()) } answers {
+            val now = clock.advance(Duration.ofSeconds(5)).toEpochMilli()
+            if (loopStart.get() < 0) {
+                loopStart.set(now)
+                transferStatus(request.id)
+            } else if (now - loopStart.get() <= 95_000) {
+                transferStatus(request.id)
+            } else {
+                transferStatus(request.id, Aria2TransferState.ERROR)
+            }
+        }
+        val samples = mutableListOf<SpeedSample>()
+        every { speedHistory.append(request.id, capture(samples)) } just Runs
+        service(Aria2Properties(pollInterval = Duration.ofMillis(100))).execute(DownloadWakeUp(request.id, 1))
+        assertEquals(DownloadState.FAILED, current.get().state)
+        assertEquals(3, samples.size)
+        assertEquals(listOf(30_000L, 60_000L, 90_000L), samples.map { it.at.toEpochMilli() - loopStart.get() })
+        assertTrue(samples.all { it.speedBytesPerSecond == 512L && it.connections == 8 })
+        verify(exactly = 0) { speedHistory.delete(any()) }
+    }
+
+    @Test
+    fun `pausing keeps the speed history and removing a finished download deletes it`() {
+        val request = current.get()
+        service.control(request.id, 1, DownloadControl.PAUSE)
+        assertEquals(DownloadState.PAUSED, current.get().state)
+        verify(exactly = 0) { speedHistory.delete(any()) }
+
+        current.set(current.get().copy(state = DownloadState.COMPLETED, completedAt = Instant.now()))
+        every { store.removeFinishedFromHistory(request.id) } returns 1
+        assertEquals(1, service.removeFinishedFromHistory(request.id))
+        verify(exactly = 1) { speedHistory.delete(request.id) }
+    }
+
+    @Test
+    fun `speed history is read only for existing downloads`() {
+        val request = current.get()
+        val sample = SpeedSample(clock.instant(), 2048, 4)
+        every { speedHistory.find(request.id) } returns listOf(sample)
+        assertEquals(listOf(sample), assertNotNull(service.speedHistory(request.id)))
+        val unknown = UUID.randomUUID()
+        every { store.find(unknown) } returns null
+        assertNull(service.speedHistory(unknown))
+        verify(exactly = 0) { speedHistory.find(unknown) }
     }
 
     @Test
@@ -318,6 +440,7 @@ class DownloadLifecycleTest {
         val unrelated = Files.write(directory.parent.resolve("other.txt"), byteArrayOf(1))
         val cancelled = service.control(request.id, request.execution.generation, DownloadControl.CANCEL)
         assertTrue(cancelled.execution.cancellationCleanupCompleted)
+        verify(exactly = 1) { speedHistory.delete(request.id) }
         assertFalse(Files.exists(directory))
         assertTrue(Files.exists(unrelated))
     }
@@ -369,6 +492,8 @@ class DownloadLifecycleTest {
         assertEquals(bytes.size.toLong(), completed.progress.completedBytes)
         assertTrue(Files.isRegularFile(Path.of(completed.execution.finalPath!!)))
         assertEquals(Aria2FileAllocation.FALLOC, configuration.settings()!!.transfer.fileAllocation)
+        assertNotNull(completed.startedAt)
+        verify(exactly = 1) { speedHistory.delete(request.id) }
     }
 
     @Test
