@@ -11,6 +11,11 @@ services:
       DMDL_REDIS_HOST: redis
       DMDL_REDIS_PASSWORD: ${DMDL_REDIS_PASSWORD:-dmdl-local}
       DMDL_SESSION_TIMEOUT: ${DMDL_SESSION_TIMEOUT:-30d}
+      # aria2 log detail: debug, info, notice (default), warn or error.
+      # info and debug also log download URLs, and debrid links can carry tokens.
+      # DMDL_ARIA2_LOG_LEVEL: info
+      # Set to "true" to log one nginx access line per request (off by default).
+      # DMDL_NGINX_ACCESS_LOG: "true"
     ports:
       - ${DMDL_PORT:-8080}:8080
     volumes:
@@ -19,6 +24,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: [CMD, /usr/local/bin/dmdl-healthcheck]
       interval: 10s
@@ -32,6 +42,11 @@ services:
       - redis_data:/data
     environment:
       REDISCLI_AUTH: ${DMDL_REDIS_PASSWORD:-dmdl-local}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: [CMD, redis-cli, ping]
       interval: 5s

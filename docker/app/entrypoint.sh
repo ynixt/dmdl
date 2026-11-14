@@ -13,6 +13,14 @@ export DMDL_ARIA2_RPC_SECRET
 install -d -m 0700 /run/dmdl
 (umask 077 && printf '%s' "$DMDL_ARIA2_RPC_SECRET" > /run/dmdl/aria2-rpc-secret)
 
+# nginx access log: off by default (the UI polls and streams constantly), one line per request
+# on stdout with DMDL_NGINX_ACCESS_LOG=true. Included from the server block of nginx.conf.
+if [ "${DMDL_NGINX_ACCESS_LOG:-false}" = "true" ]; then
+  printf 'access_log /var/log/nginx/access.log;\n' > /run/dmdl/nginx-access-log.conf
+else
+  printf 'access_log off;\n' > /run/dmdl/nginx-access-log.conf
+fi
+
 # Internal wiring of the image. These are fixed on purpose and are not configuration:
 # nginx listens on 8080, the backend on 127.0.0.1:8081 and aria2 RPC on 127.0.0.1:6800.
 # /data holds the database and the aria2 session, /media is the mounted library and
