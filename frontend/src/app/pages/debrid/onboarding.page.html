@@ -66,14 +66,13 @@
           </div>
           <div class="field">
             <label for="setup-metadata">{{ 'KZ.MANIFEST_URL' | translate }}</label>
-            <input
-              pInputText
-              id="setup-metadata"
+            <app-secret-input
+              inputId="setup-metadata"
+              kind="secret"
               [(ngModel)]="value.metadataUrl"
               placeholder="https://…/manifest.json"
-              autocomplete="off"
-              aria-describedby="setup-metadata-error"
-              [attr.aria-invalid]="!!errors()['metadata.manifestUrl']"
+              describedBy="setup-metadata-error"
+              [invalid]="!!errors()['metadata.manifestUrl']"
             />
           </div>
           @if (errors()['metadata.manifestUrl']; as message) {
@@ -103,14 +102,13 @@
 
               <div class="field">
                 <label [for]="'setup-source-' + index">{{ 'KZ.MANIFEST_URL' | translate }}</label>
-                <input
-                  pInputText
-                  [id]="'setup-source-' + index"
+                <app-secret-input
+                  [inputId]="'setup-source-' + index"
+                  kind="secret"
                   [(ngModel)]="source.manifestUrl"
                   placeholder="https://…/manifest.json"
-                  autocomplete="off"
-                  [attr.aria-describedby]="'setup-source-error-' + index"
-                  [attr.aria-invalid]="!!errors()['search.' + index + '.manifestUrl']"
+                  [describedBy]="'setup-source-error-' + index"
+                  [invalid]="!!errors()['search.' + index + '.manifestUrl']"
                 />
               </div>
 
@@ -192,16 +190,12 @@
             </div>
             <div class="field">
               <label for="setup-jellyfin-token">{{ 'KZ.API_TOKEN' | translate }}</label>
-              <input
-                pInputText
-                id="setup-jellyfin-token"
-                type="password"
+              <app-secret-input
+                inputId="setup-jellyfin-token"
+                kind="secret"
                 [(ngModel)]="value.settings.jellyfin.token"
                 (ngModelChange)="clearConnectionTest('JELLYFIN')"
-                autocomplete="new-password"
-                [attr.aria-describedby]="
-                  connectionTests()['JELLYFIN'] ? 'setup-test-result-JELLYFIN' : null
-                "
+                [describedBy]="connectionTests()['JELLYFIN'] ? 'setup-test-result-JELLYFIN' : null"
               />
               <p-button
                 [label]="'KZ.TEST_CONNECTION' | translate"

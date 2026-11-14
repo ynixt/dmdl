@@ -7,6 +7,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { firstValueFrom } from 'rxjs';
+import { SecretInputComponent } from '../../components/secret-input/secret-input.component';
 import { AuthService } from '../../core/auth/auth.service';
 import { I18nService, toSupportedLanguage } from '../../core/i18n/i18n.service';
 import {
@@ -34,6 +35,7 @@ import { StreamBadgeFieldsComponent } from './stream-badge-fields.component';
     StorageFieldsComponent,
     TransferFieldsComponent,
     StreamBadgeFieldsComponent,
+    SecretInputComponent,
   ],
   templateUrl: './onboarding.page.html',
   styleUrls: ['./debrid.scss', './onboarding.scss'],
