@@ -13,6 +13,7 @@ import { AppTitleStrategy } from '../i18n/app-title.strategy';
 import { AuthService } from './auth.service';
 import { guestGuard } from './guest.guard';
 import { unauthorizedInterceptor } from './unauthorized.interceptor';
+import { availabilityInterceptor } from '../availability.interceptor';
 
 @Component({ template: '<h1>Discovery</h1>' })
 class ProtectedTestPage {}
@@ -35,7 +36,7 @@ describe('Authentication bootstrap with HTTP translations', () => {
   it('initializes authentication before the router loads translated page titles', () => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(withInterceptors([unauthorizedInterceptor])),
+        provideHttpClient(withInterceptors([unauthorizedInterceptor, availabilityInterceptor])),
         provideHttpClientTesting(),
         provideRouter([]),
         provideTranslateService({
@@ -73,6 +74,7 @@ describe('Expired session handling during page operations', () => {
         provideRouter([
           { path: 'discovery', component: ProtectedTestPage },
           { path: 'downloads', component: DownloadsPage },
+          { path: 'offline', component: ProtectedTestPage },
           { path: 'login', component: LoginTestPage, canActivate: [guestGuard] },
         ]),
       ],
@@ -210,6 +212,7 @@ describe('Expired session handling during page operations', () => {
     await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
     const stream = TestEventSource.instances[0];
     stream.onerror!();
+    http.expectOne('/api/auth/registration').flush({ registrationRequired: false });
     http.expectOne('/api/downloads').flush({}, { status: 401, statusText: 'Unauthorized' });
     await vi.waitFor(() => expect(router.url).toBe('/login'));
     expect(stream.close).toHaveBeenCalledOnce();
@@ -223,11 +226,28 @@ describe('Expired session handling during page operations', () => {
     const page = await navigation;
     await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
     TestEventSource.instances[0].onerror!();
+    http.expectOne('/api/auth/registration').flush({ registrationRequired: false });
     http.expectOne('/api/downloads').error(new ProgressEvent('error'));
     await harness.fixture.whenStable();
     expect(page.error()).toBe('KZ.RECONNECTING');
     expect(auth.isAuthenticated()).toBe(true);
     expect(router.url).toBe('/downloads');
+  });
+
+  it('confirms a lost download stream before navigating offline and closes it on destruction', async () => {
+    await authenticate();
+    const harness = await RouterTestingHarness.create('/discovery');
+    const navigation = harness.navigateByUrl('/downloads', DownloadsPage);
+    await vi.waitFor(() => http.expectOne('/api/downloads').flush([]));
+    await navigation;
+    await vi.waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
+    const stream = TestEventSource.instances[0];
+    stream.onerror!();
+    http.expectOne('/api/downloads').error(new ProgressEvent('error'));
+    expect(router.url).toBe('/downloads');
+    http.expectOne('/api/auth/registration').flush({}, { status: 503, statusText: 'Unavailable' });
+    await vi.waitFor(() => expect(router.url).toBe('/offline?returnUrl=%2Fdownloads'));
+    expect(stream.close).toHaveBeenCalledOnce();
   });
 
   it('avoids creating a stream after the initial request redirects away from downloads', async () => {

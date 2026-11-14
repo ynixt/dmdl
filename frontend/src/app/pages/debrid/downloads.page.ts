@@ -9,6 +9,8 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '@ngx-translate/core';
+import { Router } from '@angular/router';
+import { ApiAvailabilityService } from '../../core/api-availability.service';
 import { ButtonModule } from 'primeng/button';
 import { ProgressBarModule } from 'primeng/progressbar';
 import {
@@ -28,6 +30,8 @@ import {
 export class DownloadsPage implements OnInit {
   private readonly api = inject(DebridApi);
   private readonly destroy = inject(DestroyRef);
+  private readonly availability = inject(ApiAvailabilityService);
+  private readonly router = inject(Router);
   readonly items = signal<DownloadStatus[]>([]);
   readonly hasRemovableHistory = computed(() =>
     this.items().some((item) => this.canRemoveFromHistory(item.request)),
@@ -52,7 +56,7 @@ export class DownloadsPage implements OnInit {
           if (this.error() === 'KZ.RECONNECTING') this.error.set('');
         }
       } catch {
-        // Authorization failures use the shared login redirect. The stream retries network failures.
+        // Interceptors handle authentication and confirmed connectivity failures.
       } finally {
         refreshing = false;
       }
@@ -64,6 +68,7 @@ export class DownloadsPage implements OnInit {
     });
     stream.onerror = () => {
       this.error.set('KZ.RECONNECTING');
+      void this.availability.confirmAndGoOffline(this.router.url);
       void refresh();
     };
     stream.onopen = () => this.error.set('');

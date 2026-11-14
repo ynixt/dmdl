@@ -6,6 +6,12 @@ import { registrationGuard } from './core/auth/registration.guard';
 import { ReleasesRoutePage } from './pages/debrid/releases-route.page';
 
 export const routes: Routes = [
+  {
+    path: 'offline',
+    title: 'PAGES.OFFLINE.TITLE',
+    loadComponent: () =>
+      import('./pages/offline/offline.page').then((module) => module.OfflinePageComponent),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'discovery' },
   { path: 'dashboard', pathMatch: 'full', redirectTo: 'discovery' },
   {

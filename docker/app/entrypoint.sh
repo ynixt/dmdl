@@ -23,10 +23,18 @@ backend_port=8081
 aria2_pid=
 backend_pid=
 nginx_pid=
+readiness_pid=
+
+install -d -m 0755 /run/dmdl-status || exit 1
+write_backend_state() {
+  (umask 022 && printf '{"code":"BACKEND_UNAVAILABLE","state":"%s"}\n' "$1" > /run/dmdl-status/backend-state.json.tmp) &&
+    mv /run/dmdl-status/backend-state.json.tmp /run/dmdl-status/backend-state.json
+}
+write_backend_state starting || exit 1
 
 stop_all() {
   # Reverse start order: stop serving traffic first, aria2 last.
-  for pid in "$nginx_pid" "$backend_pid" "$aria2_pid"; do
+  for pid in "$nginx_pid" "$readiness_pid" "$backend_pid" "$aria2_pid"; do
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       kill -TERM "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
@@ -63,6 +71,14 @@ java --enable-native-access=ALL-UNNAMED ${DMDL_JAVA_OPTS:-} -jar /app/app.jar \
   --application.aria2.application-staging-root=/media/.dmdl \
   --application.aria2.daemon-staging-root=/downloads/.dmdl &
 backend_pid=$!
+
+(
+  until wget -q -T 2 -O /dev/null "http://127.0.0.1:$backend_port/actuator/health/readiness"; do
+    sleep 1
+  done
+  write_backend_state ready
+) &
+readiness_pid=$!
 
 nginx -g 'daemon off;' &
 nginx_pid=$!

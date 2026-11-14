@@ -14,6 +14,7 @@ import { routes } from './app.routes';
 import { credentialsInterceptor } from './core/auth/credentials.interceptor';
 import { unauthorizedInterceptor } from './core/auth/unauthorized.interceptor';
 import { AuthService } from './core/auth/auth.service';
+import { availabilityInterceptor } from './core/availability.interceptor';
 import { AppTitleStrategy } from './core/i18n/app-title.strategy';
 import { DEFAULT_LANGUAGE, I18nService, toSupportedLanguage } from './core/i18n/i18n.service';
 import { dmdlPrimeNgTheme } from './core/theme/dmdl.preset';
@@ -25,7 +26,9 @@ export const appConfig: ApplicationConfig = {
       ripple: true,
       theme: dmdlPrimeNgTheme,
     }),
-    provideHttpClient(withInterceptors([credentialsInterceptor, unauthorizedInterceptor])),
+    provideHttpClient(
+      withInterceptors([credentialsInterceptor, unauthorizedInterceptor, availabilityInterceptor]),
+    ),
     provideRouter(routes),
     provideTranslateService({
       lang: DEFAULT_LANGUAGE,

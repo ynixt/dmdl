@@ -1,0 +1,23 @@
+<section class="offline-page">
+  <p-card class="offline-card">
+    <div class="grid gap-4 text-center" role="status" aria-live="polite">
+      <i class="pi pi-server text-3xl" aria-hidden="true"></i>
+      <h1 class="m-0 text-xl font-semibold">{{ 'PAGES.OFFLINE.TITLE' | translate }}</h1>
+      <p class="m-0">{{ messageKey() | translate }}</p>
+      @if (checking()) {
+        <p-progress-spinner
+          [attr.aria-label]="'COMMON.LOADING' | translate"
+          [style]="{ width: '24px', height: '24px' }"
+          strokeWidth="5"
+        />
+      } @else {
+        <p class="m-0 opacity-70">
+          {{ 'PAGES.OFFLINE.RETRY_IN' | translate: { seconds: remaining() } }}
+        </p>
+      }
+      <button pButton type="button" [disabled]="checking()" (click)="retry()">
+        {{ 'PAGES.OFFLINE.RETRY' | translate }}
+      </button>
+    </div>
+  </p-card>
+</section>

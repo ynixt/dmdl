@@ -17,7 +17,9 @@
           }}</a>
           <a routerLink="/settings" routerLinkActive="font-bold">{{ 'KZ.SETTINGS' | translate }}</a>
         }
-        <p-button [label]="'KZ.LOGOUT' | translate" severity="secondary" (onClick)="logout()" />
+        @if (!offline()) {
+          <p-button [label]="'KZ.LOGOUT' | translate" severity="secondary" (onClick)="logout()" />
+        }
       </nav>
     }
   </ng-template>
