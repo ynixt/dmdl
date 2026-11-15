@@ -1,6 +1,9 @@
 {
   "LOGS": {
     "TITLE": "Logs",
+    "SORT_ORDER": "Sort by date",
+    "DATE_ASC": "Ascending (oldest first)",
+    "DATE_DESC": "Descending (newest first)",
     "SOURCE": "Source",
     "ALL_SOURCES": "All sources",
     "SEARCH": "Search text",

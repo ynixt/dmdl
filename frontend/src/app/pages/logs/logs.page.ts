@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
   inject,
@@ -38,6 +39,13 @@ export class LogsPage {
   private activeFilters: LogFilters = { source: 'all', text: '', levels: [] };
   readonly levels = logLevels;
   readonly records = signal<LogRecord[]>([]);
+  readonly sortOrder = signal<'asc' | 'desc'>('asc');
+  readonly sortedRecords = computed(() => {
+    const records = [...this.records()].sort(
+      (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+    );
+    return this.sortOrder() === 'asc' ? records : records.reverse();
+  });
   readonly sources = signal<LogPage['sources']>([]);
   readonly paused = signal(false);
   readonly loading = signal(true);
@@ -67,6 +75,14 @@ export class LogsPage {
       ? [...this.selectedLevels, level]
       : this.selectedLevels.filter((value) => value !== level);
     this.filtersChanged();
+  }
+
+  changeSortOrder(order: 'asc' | 'desc') {
+    this.sortOrder.set(order);
+    requestAnimationFrame(() => {
+      const viewport = this.viewport()?.nativeElement;
+      if (viewport) viewport.scrollTop = order === 'asc' ? viewport.scrollHeight : 0;
+    });
   }
 
   togglePause() {
@@ -206,7 +222,10 @@ export class LogsPage {
     if (!incoming.length) return;
     const viewport = this.viewport()?.nativeElement;
     const follow =
-      viewport && viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 48;
+      viewport &&
+      (this.sortOrder() === 'asc'
+        ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 48
+        : viewport.scrollTop < 48);
     const current = this.records();
     const merged = new Map(
       (older ? [...incoming, ...current] : [...current, ...incoming]).map((record) => [
@@ -219,7 +238,9 @@ export class LogsPage {
     this.records.set(older ? values.slice(0, 2000) : values.slice(-2000));
     if (follow && !older) {
       requestAnimationFrame(() => {
-        if (viewport && !this.paused()) viewport.scrollTop = viewport.scrollHeight;
+        if (viewport && !this.paused()) {
+          viewport.scrollTop = this.sortOrder() === 'asc' ? viewport.scrollHeight : 0;
+        }
       });
     }
   }

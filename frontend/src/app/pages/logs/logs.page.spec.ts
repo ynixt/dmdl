@@ -40,13 +40,13 @@ describe('Authenticated logs', () => {
     currentOnboardingCompleted: () => false,
   };
 
-  function record(id: string, message = id): LogRecord {
+  function record(id: string, message = id, timestamp = '2026-11-15T10:00:00Z'): LogRecord {
     return {
       id,
       message,
       source: 'aria2',
       severity: 'ERROR',
-      timestamp: '2026-11-15T10:00:00Z',
+      timestamp,
       truncated: false,
     };
   }
@@ -197,6 +197,99 @@ describe('Authenticated logs', () => {
     expect(logs.records().map((entry) => entry.id)).toEqual(['older', 'recent']);
     expect(logs.records()[1].message).toBe('expanded stack trace');
   });
+
+  it('sorts by timestamp in both directions through the selector without reconnecting', async () => {
+    const logs = render([
+      record('recent', 'recent', '2026-11-15T10:02:00Z'),
+      record('oldest', 'oldest', '2026-11-15T10:00:00Z'),
+      record('middle', 'middle', '2026-11-15T10:01:00Z'),
+    ]);
+    await fixture.whenStable();
+    const messages = () =>
+      Array.from(fixture.nativeElement.querySelectorAll('pre') as NodeListOf<HTMLElement>).map(
+        (element) => element.textContent,
+      );
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+    expect(select.value).toBe('asc');
+    expect(messages()).toEqual(['oldest', 'middle', 'recent']);
+
+    select.value = 'desc';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(messages()).toEqual(['recent', 'middle', 'oldest']);
+    expect(logs.records().map((entry) => entry.id)).toEqual(['recent', 'oldest', 'middle']);
+    expect(LogConnection.connections).toHaveLength(1);
+    expect(connection().closed).toBe(false);
+    http.expectNone((request) => request.url.endsWith('/logs'));
+
+    select.value = 'asc';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(messages()).toEqual(['oldest', 'middle', 'recent']);
+  });
+
+  it('keeps descending order for history, live updates, pause and filter changes', () => {
+    const logs = render([record('recent', 'recent', '2026-11-15T10:01:00Z')]);
+    logs.changeSortOrder('desc');
+    logs.loadOlder();
+    history().flush(page([record('older')]));
+    connection().emit(
+      page([
+        record('newest', 'newest', '2026-11-15T10:02:00Z'),
+        record('recent', 'expanded', '2026-11-15T10:01:00Z'),
+      ]),
+    );
+    expect(logs.sortedRecords().map((entry) => entry.id)).toEqual(['newest', 'recent', 'older']);
+    expect(logs.sortedRecords()[1].message).toBe('expanded');
+
+    logs.togglePause();
+    logs.changeSortOrder('asc');
+    expect(logs.sortedRecords().map((entry) => entry.id)).toEqual(['older', 'recent', 'newest']);
+    logs.changeSortOrder('desc');
+    logs.filtersChanged();
+    history().flush(
+      page([
+        record('filtered-old'),
+        record('filtered-new', 'filtered-new', '2026-11-15T10:03:00Z'),
+      ]),
+    );
+    expect(logs.sortedRecords().map((entry) => entry.id)).toEqual(['filtered-new', 'filtered-old']);
+  });
+
+  it.each(['asc', 'desc'] as const)(
+    'follows live records only near the newest edge in %s order',
+    (order) => {
+      const frames: FrameRequestCallback[] = [];
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+      const logs = render([record('first')]);
+      logs.changeSortOrder(order);
+      frames.splice(0).forEach((callback) => callback(0));
+      const viewport: HTMLElement = fixture.nativeElement.querySelector('.logs-records');
+      Object.defineProperties(viewport, {
+        scrollHeight: { value: 1000, configurable: true },
+        clientHeight: { value: 200 },
+      });
+      viewport.scrollTop = order === 'asc' ? 800 : 0;
+
+      connection().emit(page([record('second')]));
+      fixture.detectChanges();
+      Object.defineProperty(viewport, 'scrollHeight', { value: 1200 });
+      expect(frames.length).toBeGreaterThan(0);
+      frames.splice(0).forEach((callback) => callback(0));
+      expect(viewport.scrollTop).toBe(order === 'asc' ? 1200 : 0);
+
+      viewport.scrollTop = 400;
+      connection().emit(page([record('third')]));
+      fixture.detectChanges();
+      frames.splice(0).forEach((callback) => callback(0));
+      expect(viewport.scrollTop).toBe(400);
+    },
+  );
 
   it('recovers rejected streams through the normal session flow and ignores pending reconnects after pause', async () => {
     const logs = render();

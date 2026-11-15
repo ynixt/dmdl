@@ -15,6 +15,13 @@
 
   <div class="logs-filters">
     <label>
+      {{ 'LOGS.SORT_ORDER' | translate }}
+      <select [ngModel]="sortOrder()" (ngModelChange)="changeSortOrder($event)">
+        <option value="asc">{{ 'LOGS.DATE_ASC' | translate }}</option>
+        <option value="desc">{{ 'LOGS.DATE_DESC' | translate }}</option>
+      </select>
+    </label>
+    <label>
       {{ 'LOGS.SOURCE' | translate }}
       <select [(ngModel)]="source" (ngModelChange)="filtersChanged()">
         <option value="all">{{ 'LOGS.ALL_SOURCES' | translate }}</option>
@@ -89,7 +96,7 @@
       <p>{{ 'LOGS.EMPTY' | translate }}</p>
     }
     <div #viewport class="logs-records" tabindex="0" [attr.aria-label]="'LOGS.TITLE' | translate">
-      @for (record of records(); track record.id) {
+      @for (record of sortedRecords(); track record.id) {
         <article class="log-record" [attr.data-severity]="record.severity">
           <header>
             <time [attr.datetime]="record.timestamp">{{
