@@ -205,6 +205,8 @@ The example compose files keep at most three 10 MB log files per service.
 
 ### Creating a release
 
+First move the **Unreleased** entries of [CHANGELOG.md](CHANGELOG.md) under a new `## [X.Y.Z] - YYYY-MM-DD` heading and commit it; the GitHub Release uses that section as its notes.
+
 With Make, Node.js and Git installed, run this from the repository root on Windows, Linux or macOS:
 
 ```sh
