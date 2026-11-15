@@ -2,28 +2,40 @@
   <ng-template #start>
     <div class="flex flex-col">
       <a routerLink="/discovery" class="font-bold text-xl">Debrid Media Downloader</a>
-      @if (auth.isAuthenticated()) {
-        @if (version.buildInfo(); as build) {
-          @if (build.url) {
-            <a
-              class="text-xs opacity-70 self-start"
-              data-testid="app-version"
-              [href]="build.url"
-              target="_blank"
-              rel="noopener noreferrer"
-              [title]="'KZ.RUNNING_VERSION' | translate"
-              >{{ build.label }}</a
-            >
-          } @else {
-            <span
-              class="text-xs opacity-70 self-start"
-              data-testid="app-version"
-              [title]="'KZ.RUNNING_VERSION' | translate"
-              >{{ build.label }}</span
-            >
+      <div class="inline-flex items-center gap-2 self-start text-xs">
+        <a
+          data-testid="github-link"
+          [href]="repositoryUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center text-xs"
+          [attr.aria-label]="'KZ.GITHUB_REPOSITORY' | translate"
+          [title]="'KZ.GITHUB_REPOSITORY' | translate"
+          ><i class="pi pi-github text-xs" aria-hidden="true"></i
+        ></a>
+        @if (auth.isAuthenticated()) {
+          @if (version.buildInfo(); as build) {
+            @if (build.url) {
+              <a
+                class="text-xs opacity-70 self-start"
+                data-testid="app-version"
+                [href]="build.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                [title]="'KZ.RUNNING_VERSION' | translate"
+                >{{ build.label }}</a
+              >
+            } @else {
+              <span
+                class="text-xs opacity-70 self-start"
+                data-testid="app-version"
+                [title]="'KZ.RUNNING_VERSION' | translate"
+                >{{ build.label }}</span
+              >
+            }
           }
         }
-      }
+      </div>
     </div>
   </ng-template>
   <ng-template #end>
@@ -45,20 +57,11 @@
             }}</a>
           }
           @if (!offline()) {
+            <a routerLink="/logs" routerLinkActive="font-bold">{{ 'LOGS.TITLE' | translate }}</a>
             <p-button [label]="'KZ.LOGOUT' | translate" severity="secondary" (onClick)="logout()" />
           }
         </nav>
       }
-      <a
-        data-testid="github-link"
-        [href]="repositoryUrl"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="inline-flex items-center"
-        [attr.aria-label]="'KZ.GITHUB_REPOSITORY' | translate"
-        [title]="'KZ.GITHUB_REPOSITORY' | translate"
-        ><i class="pi pi-github text-xl" aria-hidden="true"></i
-      ></a>
     </div>
   </ng-template>
 </p-toolbar>

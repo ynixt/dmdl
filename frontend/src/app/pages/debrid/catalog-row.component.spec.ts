@@ -1,5 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { provideTranslateService } from '@ngx-translate/core';
+import { provideRouter } from '@angular/router';
+import { provideTranslateService, TranslateService } from '@ngx-translate/core';
+import en from '../../../../public/i18n/en-US.json';
+import pt from '../../../../public/i18n/pt-BR.json';
 import { Catalog, DebridApi, Metadata } from '../../services/debrid-api.service';
 import { CatalogRowComponent } from './catalog-row.component';
 
@@ -29,7 +32,11 @@ describe('CatalogRowComponent', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1400 });
     api.get.mockResolvedValue(items);
     TestBed.configureTestingModule({
-      providers: [provideTranslateService(), { provide: DebridApi, useValue: api }],
+      providers: [
+        provideRouter([]),
+        provideTranslateService(),
+        { provide: DebridApi, useValue: api },
+      ],
     });
   });
 
@@ -41,6 +48,35 @@ describe('CatalogRowComponent', () => {
     fixture.detectChanges();
     return fixture;
   }
+
+  it.each([
+    ['movie', 'Movie', 'Filme'],
+    ['series', 'Series', 'Série'],
+    ['anime', 'Anime', 'Anime'],
+  ])(
+    'localizes the %s heading and accessible section name on language changes',
+    async (type, english, portuguese) => {
+      const translate = TestBed.inject(TranslateService);
+      translate.setTranslation('en-US', en);
+      translate.setTranslation('pt-BR', pt);
+      translate.use('en-US');
+      const fixture = await create({ ...catalog, type, name: 'TMDB Popular' });
+      expect(fixture.nativeElement.querySelector('h2').textContent).toBe(
+        'TMDB Popular | ' + english,
+      );
+      expect(fixture.nativeElement.querySelector('section').getAttribute('aria-label')).toBe(
+        'TMDB Popular | ' + english,
+      );
+      translate.use('pt-BR');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('h2').textContent).toBe(
+        'TMDB Popular | ' + portuguese,
+      );
+      expect(fixture.nativeElement.querySelector('section').getAttribute('aria-label')).toBe(
+        'TMDB Popular | ' + portuguese,
+      );
+    },
+  );
 
   it('keeps one carousel mounted while initial skeletons become cards and during reload', async () => {
     let finish!: (value: Metadata[]) => void;

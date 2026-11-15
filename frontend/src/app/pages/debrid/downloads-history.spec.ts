@@ -1,5 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideTranslateService } from '@ngx-translate/core';
+import { provideTranslateService, TranslateService } from '@ngx-translate/core';
+import { provideRouter, Router, TitleStrategy } from '@angular/router';
+import { Title } from '@angular/platform-browser';
+import { routes } from '../../app.routes';
+import { AppTitleStrategy } from '../../core/i18n/app-title.strategy';
+import en from '../../../../public/i18n/en-US.json';
+import pt from '../../../../public/i18n/pt-BR.json';
 import { DebridApi, DownloadStatus } from '../../services/debrid-api.service';
 import { DownloadsPage } from './downloads.page';
 
@@ -83,7 +89,12 @@ describe('Completed download history actions', () => {
       },
     );
     TestBed.configureTestingModule({
-      providers: [provideTranslateService(), { provide: DebridApi, useValue: api }],
+      providers: [
+        provideTranslateService(),
+        provideRouter([]),
+        { provide: TitleStrategy, useClass: AppTitleStrategy },
+        { provide: DebridApi, useValue: api },
+      ],
     });
   });
 
@@ -91,6 +102,26 @@ describe('Completed download history actions', () => {
     fixture?.destroy();
     vi.unstubAllGlobals();
   });
+
+  it.each([
+    ['en-US', en],
+    ['pt-BR', pt],
+  ] as const)(
+    'uses Downloads for the heading and route title in %s',
+    async (language, translations) => {
+      const translate = TestBed.inject(TranslateService);
+      translate.setTranslation(language, translations);
+      translate.use(language);
+      const route = routes.find((route) => route.path === 'downloads')!;
+      TestBed.inject(Router).resetConfig([
+        { path: 'downloads', component: DownloadsPage, title: route.title },
+      ]);
+      await TestBed.inject(Router).navigateByUrl('/downloads');
+      await render();
+      expect(fixture.nativeElement.querySelector('h1').textContent).toBe('Downloads');
+      expect(TestBed.inject(Title).getTitle()).toBe('Downloads | Debrid Media Downloader');
+    },
+  );
 
   it('shows only the open connection count, without per-connection speeds', async () => {
     const item = download('active', 'TRANSFERRING');

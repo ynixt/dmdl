@@ -3,7 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { provideTranslateService } from '@ngx-translate/core';
+import { provideTranslateService, TranslateService } from '@ngx-translate/core';
+import en from '../../../../public/i18n/en-US.json';
+import pt from '../../../../public/i18n/pt-BR.json';
 import { AuthService } from '../../core/auth/auth.service';
 import { NavbarComponent } from './navbar.component';
 
@@ -28,11 +30,12 @@ describe('Onboarding navigation', () => {
     });
   });
 
-  it.each([false, null])('hides application links while completion is %s', (state) => {
+  it.each([false, null])('shows logs during onboarding while completion is %s', (state) => {
     completed.set(state);
     const fixture = TestBed.createComponent(NavbarComponent);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelectorAll('nav a')).toHaveLength(0);
+    expect(fixture.nativeElement.querySelectorAll('nav a')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelector('nav a').getAttribute('href')).toBe('/logs');
     expect(fixture.nativeElement.querySelector('nav button')).not.toBeNull();
   });
 
@@ -48,6 +51,7 @@ describe('Onboarding navigation', () => {
       '/discovery',
       '/downloads',
       '/settings',
+      '/logs',
     ]);
   });
 
@@ -115,6 +119,20 @@ describe('Navbar repository link and version', () => {
     return query(fixture, 'app-version');
   }
 
+  it.each([
+    ['en-US', en],
+    ['pt-BR', pt],
+  ] as const)('uses Downloads in the %s navigation', (language, translations) => {
+    const translate = TestBed.inject(TranslateService);
+    translate.setTranslation(language, translations);
+    translate.use(language);
+    const fixture = render();
+    respond(fixture, { version: null, commit: null });
+    expect(fixture.nativeElement.querySelector('a[href="/downloads"]').textContent.trim()).toBe(
+      'Downloads',
+    );
+  });
+
   it('shows only the repository link to visitors and does not request the version', () => {
     authenticated.set(false);
     const fixture = render();
@@ -124,17 +142,23 @@ describe('Navbar repository link and version', () => {
     expect(github.target).toBe('_blank');
     expect(github.rel).toBe('noopener noreferrer');
     expect(github.getAttribute('aria-label')).toBe('KZ.GITHUB_REPOSITORY');
+    expect(github.parentElement?.previousElementSibling?.textContent).toBe(
+      'Debrid Media Downloader',
+    );
+    expect(github.querySelector('i')?.classList.contains('text-xs')).toBe(true);
     expect(query(fixture, 'app-version')).toBeNull();
     http.expectNone('/version.json');
   });
 
-  it('places the version under the title and the repository link after the navigation', () => {
+  it('places the compact repository icon immediately before the version under the title', () => {
     const fixture = render();
     const version = respond(fixture, { version: 'v0.0.6', commit: SHA }) as HTMLElement;
     const title = fixture.nativeElement.querySelector('a[href="/discovery"]') as HTMLElement;
-    expect(title.nextElementSibling).toBe(version);
-    const end = fixture.nativeElement.querySelector('nav').parentElement as HTMLElement;
-    expect(end.lastElementChild?.getAttribute('data-testid')).toBe('github-link');
+    expect(title.nextElementSibling).toBe(version.parentElement);
+    const github = query(fixture, 'github-link')!;
+    expect(github.nextElementSibling).toBe(version);
+    expect(github.querySelector('i')?.classList.contains('text-xs')).toBe(true);
+    expect(github.parentElement?.classList.contains('items-center')).toBe(true);
   });
 
   it('links a release tag to its release', () => {

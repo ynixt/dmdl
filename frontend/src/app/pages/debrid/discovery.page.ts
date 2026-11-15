@@ -2,9 +2,8 @@ import { Location } from '@angular/common';
 import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslatePipe } from '@ngx-translate/core';
-import { Addons, Catalog, DebridApi, Metadata } from '../../services/debrid-api.service';
+import { Addons, Catalog, DebridApi } from '../../services/debrid-api.service';
 import { CatalogRowComponent, CatalogRowSnapshot } from './catalog-row.component';
-import { mediaRoute, PREVIEW_STATE } from './media-route';
 import { CatalogSearch, SearchBarComponent } from './search-bar.component';
 
 interface DiscoveryRows {
@@ -89,7 +88,7 @@ export class DiscoveryPage implements OnInit {
     this.save();
   }
 
-  private save(): void {
+  save(): void {
     const source = this.addons.metadata;
     if (!source) return;
     const discoveryRows: DiscoveryRows = {
@@ -102,12 +101,5 @@ export class DiscoveryPage implements OnInit {
       ...(this.location.getState() as object),
       discoveryRows,
     });
-  }
-
-  async open(item: Metadata): Promise<void> {
-    const commands = mediaRoute(item, this.addons.metadata?.manifest);
-    if (!commands) return;
-    this.save();
-    await this.router.navigate(commands, { state: { [PREVIEW_STATE]: item } });
   }
 }

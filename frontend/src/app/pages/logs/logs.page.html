@@ -1,0 +1,109 @@
+<section class="logs-page">
+  <div class="logs-heading">
+    <h1>{{ 'LOGS.TITLE' | translate }}</h1>
+    <div class="logs-actions">
+      <span role="status">{{
+        (paused() ? 'LOGS.PAUSED' : 'LOGS.' + status().toUpperCase()) | translate
+      }}</span>
+      <p-button
+        [label]="(paused() ? 'LOGS.RESUME' : 'LOGS.PAUSE') | translate"
+        severity="secondary"
+        (onClick)="togglePause()"
+      />
+    </div>
+  </div>
+
+  <div class="logs-filters">
+    <label>
+      {{ 'LOGS.SOURCE' | translate }}
+      <select [(ngModel)]="source" (ngModelChange)="filtersChanged()">
+        <option value="all">{{ 'LOGS.ALL_SOURCES' | translate }}</option>
+        <option value="backend">backend</option>
+        <option value="nginx">nginx</option>
+        <option value="aria2">aria2</option>
+      </select>
+    </label>
+    <label class="logs-search">
+      {{ 'LOGS.SEARCH' | translate }}
+      <input
+        type="search"
+        maxlength="4096"
+        [(ngModel)]="text"
+        (ngModelChange)="filtersChanged(true)"
+      />
+    </label>
+    <fieldset>
+      <legend>{{ 'LOGS.SEVERITY' | translate }}</legend>
+      @for (level of levels; track level) {
+        <label class="logs-level">
+          <input
+            type="checkbox"
+            [checked]="selectedLevels.includes(level)"
+            (change)="toggleLevel(level, $any($event.target).checked)"
+          />
+          {{ level }}
+        </label>
+      }
+    </fieldset>
+  </div>
+
+  <div class="logs-feedback" aria-live="polite">
+    @if (gap()) {
+      <p>{{ (gap() === 'reset' ? 'LOGS.RESET' : 'LOGS.GAP') | translate }}</p>
+    }
+    @if (evicted()) {
+      <p>{{ 'LOGS.EVICTED' | translate }}</p>
+    }
+    @for (capture of sources(); track capture.source) {
+      @if ((source === 'all' || source === capture.source) && capture.state !== 'available') {
+        <p>
+          {{
+            'LOGS.CAPTURE_STATUS'
+              | translate
+                : {
+                    source: capture.source,
+                    state: ('LOGS.SOURCE_' + capture.state.toUpperCase() | translate),
+                  }
+          }}
+        </p>
+      }
+    }
+    @if (status() === 'failure' || status() === 'disconnected') {
+      <p>{{ (status() === 'failure' ? 'LOGS.FAILURE' : 'LOGS.DISCONNECTED') | translate }}</p>
+      <p-button [label]="'LOGS.RETRY' | translate" severity="secondary" (onClick)="retry()" />
+    }
+  </div>
+
+  @if (loading()) {
+    <p role="status">{{ 'LOGS.LOADING' | translate }}</p>
+  } @else {
+    @if (hasOlder()) {
+      <p-button
+        [label]="'LOGS.OLDER' | translate"
+        [loading]="loadingOlder()"
+        severity="secondary"
+        (onClick)="loadOlder()"
+      />
+    }
+    @if (records().length === 0) {
+      <p>{{ 'LOGS.EMPTY' | translate }}</p>
+    }
+    <div #viewport class="logs-records" tabindex="0" [attr.aria-label]="'LOGS.TITLE' | translate">
+      @for (record of records(); track record.id) {
+        <article class="log-record" [attr.data-severity]="record.severity">
+          <header>
+            <time [attr.datetime]="record.timestamp">{{
+              record.timestamp | date: 'yyyy-MM-dd HH:mm:ss.SSS'
+            }}</time>
+            <span>{{ record.source }}</span>
+            <strong>{{ record.severity }}</strong>
+          </header>
+          <pre>{{ record.message }}</pre>
+          @if (record.truncated) {
+            <span class="log-truncated">{{ 'LOGS.TRUNCATED' | translate }}</span>
+          }
+        </article>
+      }
+    </div>
+  }
+</section>

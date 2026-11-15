@@ -1,6 +1,8 @@
 import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { provideTranslateService } from '@ngx-translate/core';
 import { Catalog, DebridApi, Metadata } from '../../services/debrid-api.service';
@@ -92,9 +94,13 @@ describe('SearchPage', () => {
       query: 'dune',
     });
     expect(harness.routeNativeElement!.querySelector('.media-card')?.textContent).toContain('Dune');
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-    await page.open(item);
-    expect(navigate).toHaveBeenCalledWith(['/movie', 'tt1'], { state: { mediaPreview: item } });
+    const link = harness.fixture.debugElement
+      .query(By.directive(RouterLink))
+      .injector.get(RouterLink);
+    expect(harness.routeNativeElement!.querySelector('a.media-card')?.getAttribute('href')).toBe(
+      '/movie/tt1',
+    );
+    expect(link.state).toEqual({ mediaPreview: item });
   });
 
   it('falls back to the first searchable catalog when the URL catalog is unknown', async () => {

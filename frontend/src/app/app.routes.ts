@@ -66,6 +66,12 @@ export const routes: Routes = [
       import('./pages/debrid/downloads.page').then((module) => module.DownloadsPage),
   },
   {
+    path: 'logs',
+    title: 'LOGS.TITLE',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/logs/logs.page').then((module) => module.LogsPage),
+  },
+  {
     path: 'settings',
     title: 'KZ.SETTINGS',
     canActivate: [authGuard],

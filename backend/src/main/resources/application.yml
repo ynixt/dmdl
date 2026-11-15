@@ -47,6 +47,8 @@ management:
         enabled: true
       show-details: when_authorized
 application:
+  logs:
+    directory: ${DMDL_LOG_DIRECTORY:/run/dmdl/logs}
   database:
     path: ${DMDL_DB_PATH:./data/dmdl.db}
     busy-timeout-millis: ${DMDL_DB_BUSY_TIMEOUT_MILLIS:5000}

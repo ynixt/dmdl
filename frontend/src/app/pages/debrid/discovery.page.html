@@ -12,7 +12,7 @@
         [restored]="restored[key(catalog)]"
         (changed)="update(catalog, $event)"
         (unavailable)="hide(catalog)"
-        (open)="open($event)"
+        (beforeNavigate)="save()"
       />
     }
   }

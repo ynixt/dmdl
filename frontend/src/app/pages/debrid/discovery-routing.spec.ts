@@ -1,7 +1,7 @@
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideAppInitializer, inject } from '@angular/core';
+import { Component, provideAppInitializer, inject } from '@angular/core';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { provideTranslateService } from '@ngx-translate/core';
@@ -20,6 +20,9 @@ import { of } from 'rxjs';
 import { NavigationHistory } from './navigation-history.service';
 import { ReleasesPanelComponent } from './releases-panel.component';
 import { CatalogRowComponent } from './catalog-row.component';
+
+@Component({ template: '' })
+class ContentDestination {}
 
 describe('Discovery catalog routing', () => {
   const catalogs: Catalog[] = Array.from({ length: 14 }, (_, index) => ({
@@ -69,6 +72,7 @@ describe('Discovery catalog routing', () => {
         provideRouter([
           { path: 'discovery', component: DiscoveryPage },
           { path: 'search', component: SearchPage },
+          { path: 'movie/:id', component: ContentDestination },
         ]),
         provideLocationMocks(),
         provideTranslateService(),
@@ -116,7 +120,7 @@ describe('Discovery catalog routing', () => {
     harness.detectChanges();
     expect(harness.routeNativeElement!.querySelectorAll('app-catalog-row')).toHaveLength(1);
     expect(harness.routeNativeElement!.querySelector('app-catalog-row h2')?.textContent).toBe(
-      'Catalog 2',
+      'Catalog 2 | KZ.MOVIE',
     );
   });
 
@@ -161,6 +165,40 @@ describe('Discovery catalog routing', () => {
     expect(harness.routeNativeElement!.querySelector('app-search-bar')).not.toBeNull();
     expect(harness.routeNativeElement!.querySelector('app-catalog-row')).toBeNull();
     expect(api.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores row options, positions and loaded cards after following a link and Back', async () => {
+    TestBed.inject(Router).setUpLocationChangeListener();
+    advertised = [
+      {
+        ...catalogs[0],
+        extra: [{ name: 'genre', isRequired: false, options: ['Drama', 'Action'] }],
+      },
+    ];
+    const { harness, page } = await open();
+    const row: CatalogRowComponent = harness.fixture.debugElement.query(
+      By.directive(CatalogRowComponent),
+    ).componentInstance;
+    row.selectedExtras['genre'] = 'Drama';
+    await row.reload(false);
+    row.page = 2;
+    row.exhausted = true;
+    page.update(advertised[0], row.snapshot());
+    harness.detectChanges();
+    const before = structuredClone(row.snapshot());
+    (harness.routeNativeElement!.querySelector('a.media-card') as HTMLAnchorElement).click();
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/movie/tt0');
+    api.get.mockClear();
+    TestBed.inject(Location).back();
+    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/discovery'));
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const restored: CatalogRowComponent = harness.fixture.debugElement.query(
+      By.directive(CatalogRowComponent),
+    ).componentInstance;
+    expect(restored.snapshot()).toEqual(before);
+    expect(api.get).toHaveBeenCalledExactlyOnceWith('/addons');
   });
 });
 
@@ -436,18 +474,19 @@ describe('Media page navigation and releases', () => {
     await settled(h);
     expect(h.routeNativeElement!.querySelector('app-releases-panel')).not.toBeNull();
   });
-  it('passes the card data when opening a result', async () => {
+  it('passes the card data through a search result link', async () => {
     const h = await RouterTestingHarness.create();
-    await h.navigateByUrl('/discovery', DiscoveryPage);
+    await h.navigateByUrl('/search?q=Example&catalog=series:series', SearchPage);
     await settled(h);
-    const discovery: DiscoveryPage = h.fixture.debugElement.query(
-      By.directive(DiscoveryPage),
-    ).componentInstance;
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
-    await discovery.open(metadata);
-    expect(navigate).toHaveBeenCalledWith(['/show', 'tvdb:81189'], {
-      state: { mediaPreview: metadata },
-    });
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+    (h.routeNativeElement!.querySelector('a.media-card') as HTMLAnchorElement).click();
+    await settled(h);
+    expect(navigate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        state: { mediaPreview: metadata },
+      }),
+    );
   });
   it('keeps an addon-typed anime on /show when classified as series', async () => {
     metadata.identity.resourceType = 'anime';

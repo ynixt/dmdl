@@ -22,7 +22,7 @@ FROM eclipse-temurin:25-jre
 LABEL org.opencontainers.image.title="Debrid Media Downloader"
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends aria2 coreutils nginx tini wget \
+    && apt-get install -y --no-install-recommends aria2 coreutils nginx python3 tini wget \
     && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/* \
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log \
@@ -33,12 +33,13 @@ COPY docker/aria2/start-aria2.sh /usr/local/bin/start-aria2
 COPY docker/aria2/aria2-healthcheck.sh /usr/local/bin/aria2-healthcheck
 COPY docker/aria2/allocation-readout.awk /usr/local/bin/allocation-readout.awk
 COPY docker/app/entrypoint.sh /usr/local/bin/dmdl-entrypoint
+COPY docker/app/log-collector.py /usr/local/bin/dmdl-log-collector
 COPY docker/app/healthcheck.sh /usr/local/bin/dmdl-healthcheck
 COPY docker/app/nginx.conf /etc/nginx/conf.d/dmdl.conf
 RUN sed -i 's/\r$//' /usr/local/bin/start-aria2 /usr/local/bin/aria2-healthcheck /usr/local/bin/allocation-readout.awk \
-        /usr/local/bin/dmdl-entrypoint /usr/local/bin/dmdl-healthcheck /etc/nginx/conf.d/dmdl.conf \
+        /usr/local/bin/dmdl-entrypoint /usr/local/bin/dmdl-log-collector /usr/local/bin/dmdl-healthcheck /etc/nginx/conf.d/dmdl.conf \
     && chmod 0755 /usr/local/bin/start-aria2 /usr/local/bin/aria2-healthcheck \
-        /usr/local/bin/dmdl-entrypoint /usr/local/bin/dmdl-healthcheck
+        /usr/local/bin/dmdl-entrypoint /usr/local/bin/dmdl-log-collector /usr/local/bin/dmdl-healthcheck
 
 COPY --from=backend-build /app/build/libs/*.jar /app/app.jar
 COPY --from=frontend-build /app/dist/dmdl/browser /usr/share/nginx/html

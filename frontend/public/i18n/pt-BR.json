@@ -1,4 +1,30 @@
 {
+  "LOGS": {
+    "TITLE": "Logs",
+    "SOURCE": "Origem",
+    "ALL_SOURCES": "Todas as origens",
+    "SEARCH": "Buscar texto",
+    "SEVERITY": "Severidade",
+    "PAUSE": "Pausar",
+    "RESUME": "Retomar",
+    "PAUSED": "Pausado",
+    "CONNECTING": "Conectando",
+    "LIVE": "Ao vivo",
+    "DISCONNECTED": "Desconectado. Reconectando…",
+    "FAILURE": "Não foi possível carregar os logs.",
+    "RETRY": "Tentar novamente",
+    "LOADING": "Carregando logs…",
+    "OLDER": "Carregar registros anteriores",
+    "EMPTY": "Nenhum registro corresponde aos filtros.",
+    "GAP": "Alguns registros expiraram. Exibindo o histórico disponível.",
+    "RESET": "O container reiniciou. Exibindo os registros da execução atual.",
+    "EVICTED": "A exibição é limitada a 2.000 registros. Parte do histórico exibido foi removida.",
+    "TRUNCATED": "Este registro foi truncado.",
+    "CAPTURE_STATUS": "A captura de {{source}} está {{state}}.",
+    "SOURCE_UNAVAILABLE": "indisponível",
+    "SOURCE_FAILED": "com falha",
+    "SOURCE_STOPPED": "interrompida"
+  },
   "APP": {
     "NAME": "Debrid Media Downloader"
   },
@@ -55,7 +81,10 @@
   },
   "KZ": {
     "DISCOVERY": "Descobrir",
-    "DOWNLOADS": "Downloads e histórico",
+    "DOWNLOADS": "Downloads",
+    "MOVIE": "Filme",
+    "SERIES": "Série",
+    "ANIME": "Anime",
     "SETTINGS": "Configurações",
     "SETUP": "Configuração inicial",
     "NAVIGATION": "Navegação principal",

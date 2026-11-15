@@ -5,7 +5,7 @@ import { TranslatePipe } from '@ngx-translate/core';
 import { ButtonModule } from 'primeng/button';
 import { Addons, Catalog, DebridApi, Metadata } from '../../services/debrid-api.service';
 import { MediaCardComponent } from './media-card.component';
-import { mediaRoute, PREVIEW_STATE } from './media-route';
+import { mediaRoute } from './media-route';
 import { CatalogSearch, SearchBarComponent } from './search-bar.component';
 
 @Component({
@@ -50,8 +50,8 @@ import { CatalogSearch, SearchBarComponent } from './search-bar.component';
               [poster]="item.posterUrl"
               [title]="item.title"
               [year]="item.year"
-              [disabled]="busy() || !canOpen(item)"
-              (open)="open(item)"
+              [commands]="mediaCommands(item)"
+              [state]="{ mediaPreview: item }"
             />
           } @empty {
             @if (!busy() && !error()) {
@@ -155,14 +155,8 @@ export class SearchPage implements OnInit {
     }
   }
 
-  canOpen(item: Metadata): boolean {
-    return mediaRoute(item, this.addons.metadata?.manifest) !== null;
-  }
-
-  async open(item: Metadata): Promise<void> {
-    const commands = mediaRoute(item, this.addons.metadata?.manifest);
-    if (this.busy() || !commands) return;
-    await this.router.navigate(commands, { state: { [PREVIEW_STATE]: item } });
+  mediaCommands(item: Metadata): string[] | null {
+    return mediaRoute(item, this.addons.metadata?.manifest);
   }
 
   private showError(error: unknown): void {

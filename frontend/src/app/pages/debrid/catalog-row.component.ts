@@ -50,9 +50,10 @@ interface CatalogFilter extends CatalogExtra {
     MediaCardComponent,
   ],
   template: `
-    <section [attr.aria-label]="catalog().name" [attr.aria-busy]="busy()">
+    @let rowTitle = catalog().name + ' | ' + (typeLabel() | translate);
+    <section [attr.aria-label]="rowTitle" [attr.aria-busy]="busy()">
       <header>
-        <h2>{{ catalog().name }}</h2>
+        <h2>{{ rowTitle }}</h2>
         <div class="controls">
           @for (extra of filters; track extra.name) {
             @if ((extra.options?.length ?? 0) > 1) {
@@ -115,8 +116,9 @@ interface CatalogFilter extends CatalogExtra {
                   [poster]="item.posterUrl"
                   [title]="item.title"
                   [year]="item.year"
-                  [disabled]="!canOpen(item)"
-                  (open)="open.emit(item)"
+                  [commands]="route(item)"
+                  [state]="{ mediaPreview: item }"
+                  (beforeNavigate)="beforeNavigate.emit()"
                 />
               } @else {
                 <app-media-card title="" [loading]="true" />
@@ -177,7 +179,7 @@ export class CatalogRowComponent implements OnInit {
   readonly restored = input<CatalogRowSnapshot>();
   readonly changed = output<CatalogRowSnapshot>();
   readonly unavailable = output<void>();
-  readonly open = output<Metadata>();
+  readonly beforeNavigate = output<void>();
   readonly items = signal<Metadata[]>([]);
   readonly busy = signal(false);
   readonly failed = signal(false);
@@ -284,8 +286,16 @@ export class CatalogRowComponent implements OnInit {
     await this.load();
   }
 
-  canOpen(item: Metadata): boolean {
-    return mediaRoute(item, this.manifest()) !== null;
+  typeLabel(): string {
+    return (
+      ({ movie: 'KZ.MOVIE', series: 'KZ.SERIES', anime: 'KZ.ANIME' } as Record<string, string>)[
+        this.catalog().type
+      ] ?? this.catalog().type
+    );
+  }
+
+  route(item: Metadata): string[] | null {
+    return mediaRoute(item, this.manifest());
   }
 
   private async load(): Promise<void> {

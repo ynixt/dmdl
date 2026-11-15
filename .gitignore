@@ -2,6 +2,7 @@
 /jellyfin/shared/kaizoku-nginx-api-key.txt
 /media
 /data/
+/.runtime-logs/
 hs_err_pid*.log
 replay_pid*.log
 /openspec/

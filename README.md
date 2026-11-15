@@ -128,6 +128,20 @@ These are read by the `dmdl` container and can be set under its `environment:`:
 
 ### Logs
 
+Signed-in users can open **Logs** (`/logs`), including during onboarding. The page combines backend, nginx and processed aria2 records, with source, literal text and severity filters, older history and pause/resume. A pause stops browser delivery while collection continues. The page reports expired history, source capture failures and truncated records.
+
+The image initializes `/run/dmdl/logs` on every start, including a restart of an existing container. Each source keeps one active JSONL segment and two archives, each at most 10 MiB (30 MiB per source, 90 MiB total). This temporary history is separate from `/data` and is cleared at startup. Capture also forwards the original output to the container console. nginx access capture follows `DMDL_NGINX_ACCESS_LOG`, and aria2 capture follows `DMDL_ARIA2_LOG_LEVEL` after allocation-readout processing.
+
+For separate-process development, set `DMDL_LOG_DIRECTORY` on the backend to a dedicated capture directory. Initialize it once before starting any services, then pipe each service's combined output through its own collector. For example, from the repository root in a POSIX shell with Python 3 installed, capture the backend with the commands below. Use `--source nginx` or `--source aria2` for the other processes. Pipe the aria2 wrapper output so allocation processing stays upstream. Each source uses a single collector per execution. The API reports sources without a collector as unavailable.
+
+```bash
+export DMDL_LOG_DIRECTORY="$PWD/.runtime-logs"
+python3 docker/app/log-collector.py --directory "$DMDL_LOG_DIRECTORY" --initialize
+sh backend/gradlew -p backend bootRun 2>&1 | python3 docker/app/log-collector.py --directory "$DMDL_LOG_DIRECTORY" --source backend
+```
+
+The backend defaults to 200 records per history query and accepts at most 1,000. Records are capped at 64 Ki characters, the parsed history at 50,000 records or 45 Mi characters, and the browser at 2,000 records. Capture rotation and parsed-history eviction both produce explicit cursor gaps. History and SSE endpoints require a session and return `Cache-Control: no-store`.
+
 `docker compose logs dmdl` shows the backend, nginx errors and aria2. Every aria2 line starts with `[aria2] `, so you can show only those:
 
 ```bash

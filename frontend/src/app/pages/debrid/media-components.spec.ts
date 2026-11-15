@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router, RouterLink } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { provideTranslateService } from '@ngx-translate/core';
 import { mediaContent, mediaRoute } from './media-route';
 import { MediaHeroComponent } from './media-hero.component';
@@ -66,14 +68,16 @@ describe('Media route mapping', () => {
 });
 
 describe('Media presentation', () => {
-  beforeEach(() => TestBed.configureTestingModule({ providers: [provideTranslateService()] }));
+  beforeEach(() =>
+    TestBed.configureTestingModule({ providers: [provideTranslateService(), provideRouter([])] }),
+  );
   it('renders loading placeholders in the same card structure and prevents interaction', () => {
     const fixture = TestBed.createComponent(MediaCardComponent);
     fixture.componentRef.setInput('title', 'Title');
     fixture.componentRef.setInput('poster', 'https://image/poster');
     fixture.componentRef.setInput('loading', true);
     const opened = vi.fn();
-    fixture.componentInstance.open.subscribe(opened);
+    fixture.componentInstance.beforeNavigate.subscribe(opened);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.poster p-skeleton')).not.toBeNull();
     expect(
@@ -81,13 +85,16 @@ describe('Media presentation', () => {
     ).toHaveLength(2);
     expect(fixture.nativeElement.querySelector('.year p-skeleton')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('img')).toBeNull();
-    expect(fixture.nativeElement.querySelector('button').getAttribute('aria-hidden')).toBe('true');
-    fixture.nativeElement.querySelector('button').click();
+    expect(fixture.nativeElement.querySelector('.media-card').getAttribute('aria-hidden')).toBe(
+      'true',
+    );
+    expect(fixture.nativeElement.querySelector('a, button')).toBeNull();
+    fixture.nativeElement.querySelector('.media-card').click();
     expect(opened).not.toHaveBeenCalled();
     fixture.componentRef.setInput('loading', false);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('p-skeleton')).toBeNull();
-    expect(fixture.nativeElement.querySelector('button').disabled).toBe(false);
+    expect(fixture.nativeElement.querySelector('a, button')).toBeNull();
     expect(fixture.nativeElement.querySelector('strong').textContent).toContain('Title');
   });
   it('renders hero image, title, subtitle and description', () => {
@@ -145,21 +152,50 @@ describe('Media presentation', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('nav')).toBeNull();
   });
-  it('renders a card and disables unsupported media', () => {
+  it('renders accessible RouterLinks with preview state and inert unsupported media', () => {
     const fixture = TestBed.createComponent(MediaCardComponent);
     fixture.componentRef.setInput('title', 'Title');
     fixture.componentRef.setInput('poster', 'https://image/poster');
     fixture.componentRef.setInput('year', 2026);
     const opened = vi.fn();
-    fixture.componentInstance.open.subscribe(opened);
+    fixture.componentInstance.beforeNavigate.subscribe(opened);
+    fixture.componentRef.setInput('commands', ['/movie', 'tmdb:1']);
+    fixture.componentRef.setInput('state', { mediaPreview: { title: 'Title' } });
     fixture.detectChanges();
-    fixture.nativeElement.querySelector('button').click();
+    const link = fixture.nativeElement.querySelector('a') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/movie/tmdb:1');
+    expect(link.getAttribute('aria-label')).toBe('Title');
+    expect(link.tabIndex).toBe(0);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    link.click();
     expect(opened).toHaveBeenCalledOnce();
-    fixture.componentRef.setInput('disabled', true);
+    expect(navigate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        state: { mediaPreview: { title: 'Title' } },
+      }),
+    );
+    expect(fixture.debugElement.query(By.directive(RouterLink))).not.toBeNull();
+    for (const options of [
+      { ctrlKey: true },
+      { metaKey: true },
+      { shiftKey: true },
+      { button: 1 },
+    ]) {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...options });
+      link.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(opened).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledOnce();
+    fixture.componentRef.setInput('commands', null);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('button').disabled).toBe(true);
+    expect(fixture.nativeElement.querySelector('a, button')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.media-card').getAttribute('aria-label')).toContain(
+      'KZ.UNSUPPORTED_TYPE',
+    );
     expect(fixture.nativeElement.textContent).toContain('2026');
-    fixture.nativeElement.querySelector('button').click();
+    fixture.nativeElement.querySelector('.media-card').click();
     expect(opened).toHaveBeenCalledOnce();
   });
 });

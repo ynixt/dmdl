@@ -32,6 +32,14 @@ aria2_pid=
 backend_pid=
 nginx_pid=
 readiness_pid=
+collector_pids=()
+
+/usr/local/bin/dmdl-log-collector --initialize || exit 1
+for source in backend nginx aria2; do
+  mkfifo "/run/dmdl/logs/$source.pipe" || exit 1
+  /usr/local/bin/dmdl-log-collector --source "$source" < "/run/dmdl/logs/$source.pipe" &
+  collector_pids+=("$!")
+done
 
 install -d -m 0755 /run/dmdl-status || exit 1
 write_backend_state() {
@@ -48,6 +56,18 @@ stop_all() {
       wait "$pid" 2>/dev/null || true
     fi
   done
+  # A collector can still be waiting to open its FIFO if startup stopped before its service.
+  if [ -z "$backend_pid" ]; then kill -TERM "${collector_pids[0]}" 2>/dev/null || true; fi
+  if [ -z "$nginx_pid" ]; then kill -TERM "${collector_pids[1]}" 2>/dev/null || true; fi
+  if [ -z "$aria2_pid" ]; then kill -TERM "${collector_pids[2]}" 2>/dev/null || true; fi
+  # Services have closed their writers. Let collectors drain before shutting them down.
+  for pid in "${collector_pids[@]}"; do
+    # A killed nginx master can leave workers holding a writer open until container exit.
+    # Bound the drain so these inherited descriptors cannot keep the supervisor alive.
+    timeout 2s tail --pid="$pid" --sleep-interval=0.1 -f /dev/null 2>/dev/null || true
+    if kill -0 "$pid" 2>/dev/null; then kill -TERM "$pid" 2>/dev/null || true; fi
+    wait "$pid" 2>/dev/null || true
+  done
 }
 
 trap 'stop_all; exit 143' TERM INT
@@ -56,13 +76,14 @@ DMDL_ARIA2_RPC_PORT="$aria2_rpc_port" \
 DMDL_ARIA2_RPC_LISTEN_ALL=false \
 DMDL_ARIA2_CONFIG_DIR=/data/aria2 \
 DMDL_ARIA2_DEFAULT_DIR=/tmp \
-  /usr/local/bin/start-aria2 &
+  /usr/local/bin/start-aria2 > /run/dmdl/logs/aria2.pipe 2>&1 &
 aria2_pid=$!
 
 for _ in $(seq 1 60); do
   if DMDL_ARIA2_RPC_PORT="$aria2_rpc_port" /usr/local/bin/aria2-healthcheck 2>/dev/null; then break; fi
   if ! kill -0 "$aria2_pid" 2>/dev/null; then
     echo "aria2 exited during startup" >&2
+    stop_all
     exit 1
   fi
   sleep 1
@@ -79,7 +100,8 @@ java --enable-native-access=ALL-UNNAMED ${DMDL_JAVA_OPTS:-} -jar /app/app.jar \
   --application.aria2.application-staging-root=/media/.dmdl \
   --application.aria2.daemon-staging-root=/downloads/.dmdl \
   --application.aria2.startup-options-file=/data/aria2/startup-options.conf \
-  --application.aria2.restart-marker-file=/run/dmdl/aria2-restart-requested &
+  --application.aria2.restart-marker-file=/run/dmdl/aria2-restart-requested \
+  > /run/dmdl/logs/backend.pipe 2>&1 &
 backend_pid=$!
 
 (
@@ -90,10 +112,10 @@ backend_pid=$!
 ) &
 readiness_pid=$!
 
-nginx -g 'daemon off;' &
+nginx -g 'daemon off;' > /run/dmdl/logs/nginx.pipe 2>&1 &
 nginx_pid=$!
 
-wait -n "$aria2_pid" "$backend_pid" "$nginx_pid"
+wait -n "$aria2_pid" "$backend_pid" "$nginx_pid" "${collector_pids[@]}"
 status=$?
 echo "A service exited with status $status; stopping the container" >&2
 stop_all

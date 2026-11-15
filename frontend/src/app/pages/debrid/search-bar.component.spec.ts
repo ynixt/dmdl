@@ -15,6 +15,25 @@ describe('SearchBarComponent', () => {
 
   beforeEach(() => TestBed.configureTestingModule({ providers: [provideTranslateService()] }));
 
+  it('displays the four advertised search names verbatim in the selector', async () => {
+    const names = ['Movies Search', 'Series Search', 'Anime Series Search', 'Anime Movies Search'];
+    const fixture = TestBed.createComponent(SearchBarComponent);
+    fixture.componentRef.setInput(
+      'catalogs',
+      names.map((name, index) => ({ ...catalog, id: String(index), name })),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.searchableCatalogs.map((item) => item.name)).toEqual(names);
+    for (const catalog of fixture.componentInstance.searchableCatalogs) {
+      fixture.componentRef.setInput('initialCatalog', catalog);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('p-select').textContent.trim()).toBe(catalog.name);
+    }
+  });
+
   it('lists searchable catalogs, restores initial values and emits trimmed searches', async () => {
     const fixture = TestBed.createComponent(SearchBarComponent);
     fixture.componentRef.setInput('catalogs', [
