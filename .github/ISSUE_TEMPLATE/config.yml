@@ -1,8 +1,6 @@
 blank_issues_enabled: false
+# GitHub adds "Report a security vulnerability" on its own (from SECURITY.md / private vulnerability reporting).
 contact_links:
-  - name: Report a security vulnerability
-    url: https://github.com/ynixt/dmdl/security/advisories/new
-    about: Please report security problems privately, never in a public issue.
   - name: Setup and usage guide
     url: https://github.com/ynixt/dmdl#how-to-use
     about: Installation, setup wizard, webhooks, Redis and environment variables.
