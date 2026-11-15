@@ -3,17 +3,18 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideTranslateService } from '@ngx-translate/core';
-import { of } from 'rxjs';
+import { provideTranslateService, TranslateService } from '@ngx-translate/core';
+import { firstValueFrom, of } from 'rxjs';
+import en from '../../../../public/i18n/en-US.json';
 import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialog } from 'primeng/confirmdialog';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { AppConfirmationService } from '../../core/ui/confirmation.service';
-import { Addon, Addons, DebridApi, Settings } from '../../services/debrid-api.service';
+import { Addon, Addons, DebridApi, Settings, Webhook } from '../../services/debrid-api.service';
 import { SettingsPage } from './settings.page';
 import { settingsLeaveGuard } from './settings-leave.guard';
 import { SettingsSearchTabComponent } from './settings-search-tab.component';
-import { SettingsJellyfinTabComponent } from './settings-jellyfin-tab.component';
+import { SettingsWebhooksTabComponent } from './settings-webhooks-tab.component';
 
 @Component({ template: 'Downloads' })
 class DestinationPage {}
@@ -30,6 +31,7 @@ describe('Settings tabs and independent drafts', () => {
   });
   let settings: Settings;
   let addons: Addons;
+  let webhooks: Webhook[];
   const api = { get: vi.fn(), put: vi.fn(), post: vi.fn() };
   const confirmations = { confirm: vi.fn(async () => false) };
   const i18n = { currentLanguage: vi.fn(() => 'en-US'), setLanguage: vi.fn(() => of(void 0)) };
@@ -65,20 +67,39 @@ describe('Settings tabs and independent drafts', () => {
         ipv6Enabled: false,
       },
       maxConcurrentDownloads: 2,
-      jellyfin: { enabled: false, url: 'https://jellyfin', token: 'stored-token' },
       streamBadgeJson: '{"imports":[]}',
     };
     addons = { metadata: addon('metadata'), search: [addon('first'), addon('second')] };
+    webhooks = [
+      {
+        id: 'hook-1',
+        name: 'Home Assistant',
+        method: 'POST',
+        url: 'https://ha.local/api/webhook/secret-id',
+        headers: [{ name: 'Authorization', value: 'Bearer stored-token' }],
+        bodyMode: 'NONE',
+        body: null,
+        events: ['download.completed'],
+        manual: true,
+        enabled: true,
+      },
+    ];
     api.get.mockImplementation(async (path: string) =>
       structuredClone(
         path === '/settings'
           ? settings
           : path === '/addons'
             ? addons
-            : { streamBadgeJson: '{"imports":[]}' },
+            : path === '/webhooks'
+              ? webhooks
+              : { streamBadgeJson: '{"imports":[]}' },
       ),
     );
     api.put.mockImplementation(async (path: string, body: unknown) => {
+      if (path === '/webhooks') {
+        webhooks = structuredClone(body as Webhook[]);
+        return structuredClone(webhooks);
+      }
       if (path === '/addons/search') {
         addons.search = (body as Addon[]).map((row, position) => ({
           ...addon(row.id ?? 'new'),
@@ -125,7 +146,7 @@ describe('Settings tabs and independent drafts', () => {
   }
   async function tab(
     page: SettingsPage,
-    name: 'metadata' | 'search' | 'storage' | 'jellyfin',
+    name: 'metadata' | 'search' | 'storage' | 'webhooks',
   ): Promise<void> {
     page.selectTab(name);
     await settle(harness.fixture);
@@ -140,7 +161,7 @@ describe('Settings tabs and independent drafts', () => {
     const page = await open();
     expect(page.activeTab()).toBe('metadata');
     expect(harness.routeNativeElement!.querySelector('#metadata-url')).not.toBeNull();
-    expect(harness.routeNativeElement!.querySelector('#jellyfin-url')).toBeNull();
+    expect(harness.routeNativeElement!.querySelector('#webhook-0-url')).toBeNull();
     expect(
       harness.routeNativeElement!.querySelector('.wizard-footer button')?.hasAttribute('disabled'),
     ).toBe(true);
@@ -151,6 +172,9 @@ describe('Settings tabs and independent drafts', () => {
     await settle(harness.fixture);
     expect(page.activeTab()).toBe('metadata');
     expect(TestBed.inject(Router).url).toBe('/settings?tab=metadata');
+    await harness.navigateByUrl('/settings?tab=jellyfin');
+    await settle(harness.fixture);
+    expect(page.activeTab()).toBe('metadata');
   });
 
   it('opens the requested tab and supports arrow, Home and End keyboard navigation', async () => {
@@ -159,14 +183,14 @@ describe('Settings tabs and independent drafts', () => {
     const buttons = harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('[role=tab]');
     buttons[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await settle(harness.fixture);
-    expect(page.activeTab()).toBe('jellyfin');
+    expect(page.activeTab()).toBe('webhooks');
     expect(document.activeElement).toBe(buttons[3]);
     buttons[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     await settle(harness.fixture);
     expect(page.activeTab()).toBe('metadata');
     buttons[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
     await settle(harness.fixture);
-    expect(page.activeTab()).toBe('jellyfin');
+    expect(page.activeTab()).toBe('webhooks');
     buttons[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     await settle(harness.fixture);
     expect(page.activeTab()).toBe('storage');
@@ -256,6 +280,55 @@ describe('Settings tabs and independent drafts', () => {
     expect(page.store.search.dirty()).toBe(true);
   });
 
+  it('shows translated missing-resource causes beside metadata and search URLs and keeps drafts', async () => {
+    const translate = TestBed.inject(TranslateService);
+    translate.setTranslation('en-US', en);
+    await firstValueFrom(translate.use('en-US'));
+    const page = await open();
+    page.store.metadata.patch({
+      addon: {
+        ...page.store.metadata.draft().addon,
+        manifestUrl: 'https://no-catalog/manifest.json',
+      },
+    });
+    api.put.mockRejectedValueOnce({
+      error: {
+        error: 'KZ.INVALID_CONFIGURATION',
+        errors: { 'metadata.manifestUrl': 'KZ.ADDON_MISSING_CATALOG' },
+      },
+    });
+    await page.store.saveMetadata();
+    await settle(harness.fixture);
+    expect(harness.routeNativeElement!.querySelector('#metadata-url-error')?.textContent).toContain(
+      en.KZ.ADDON_MISSING_CATALOG,
+    );
+    expect(page.store.metadata.draft().addon.manifestUrl).toBe('https://no-catalog/manifest.json');
+    expect(page.store.metadata.dirty()).toBe(true);
+
+    await tab(page, 'search');
+    page.store.search.patch({
+      addons: page.store.search
+        .draft()
+        .addons.map((row, index) =>
+          index === 1 ? { ...row, manifestUrl: 'https://no-stream/manifest.json' } : row,
+        ),
+    });
+    api.put.mockRejectedValueOnce({
+      error: {
+        error: 'KZ.ADDONS_INVALID',
+        errors: { 'search.1.manifestUrl': 'KZ.ADDON_MISSING_STREAM' },
+      },
+    });
+    await page.store.saveSearch();
+    await settle(harness.fixture);
+    expect(harness.routeNativeElement!.querySelector('#search-url-error-1')?.textContent).toContain(
+      en.KZ.ADDON_MISSING_STREAM,
+    );
+    expect(harness.routeNativeElement!.querySelector('#search-url-error-0')).toBeNull();
+    expect(page.store.search.draft().addons[1].manifestUrl).toBe('https://no-stream/manifest.json');
+    expect(page.store.search.dirty()).toBe(true);
+  });
+
   it('saves badges after the list and leaves only badges dirty when that request fails', async () => {
     const page = await open('/settings?tab=search');
     page.store.search.patch({
@@ -290,50 +363,108 @@ describe('Settings tabs and independent drafts', () => {
     expect(page.store.storage.dirty()).toBe(false);
   });
 
-  it('pre-fills masked secrets, sends a blank token unchanged and tests current values', async () => {
-    const page = await open('/settings?tab=jellyfin');
-    const token = harness.routeNativeElement!.querySelector<HTMLInputElement>('#jellyfin-token')!;
-    expect(token.type).toBe('password');
-    expect(token.value).toBe('stored-token');
-    type('#jellyfin-token', '');
+  it('masks webhook secrets, saves the whole list and tests the values being edited', async () => {
+    const page = await open('/settings?tab=webhooks');
+    const url = harness.routeNativeElement!.querySelector<HTMLInputElement>('#webhook-0-url')!;
+    const header = harness.routeNativeElement!.querySelector<HTMLInputElement>(
+      '#webhook-0-headers-0-value',
+    )!;
+    expect(url.type).toBe('password');
+    expect(url.value).toBe('https://ha.local/api/webhook/secret-id');
+    expect(header.type).toBe('password');
+    expect(header.value).toBe('Bearer stored-token');
+    type('#webhook-0-url', 'https://draft.local/hook');
     await settle(harness.fixture);
-    await page.store.saveJellyfin();
-    expect(api.put).toHaveBeenCalledWith('/settings', {
-      jellyfin: { enabled: false, url: 'https://jellyfin', token: '' },
+    expect(page.store.webhooks.dirty()).toBe(true);
+    const component = harness.routeDebugElement!.query(By.directive(SettingsWebhooksTabComponent))
+      .componentInstance as SettingsWebhooksTabComponent;
+    api.post.mockResolvedValueOnce({ ok: true, status: 204 });
+    await component.test(page.store.webhooks.draft().items[0]);
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/webhooks/test', {
+      webhook: expect.objectContaining({ id: 'hook-1', url: 'https://draft.local/hook' }),
+      event: 'download.completed',
     });
-    type('#jellyfin-url', 'https://draft');
-    type('#jellyfin-token', 'draft-token');
-    await settle(harness.fixture);
-    const component = harness.routeDebugElement!.query(By.directive(SettingsJellyfinTabComponent))
-      .componentInstance as SettingsJellyfinTabComponent;
-    await component.testConnection();
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/settings/jellyfin/test', {
-      enabled: false,
-      url: 'https://draft',
-      token: 'draft-token',
-    });
+    expect(webhooks[0].url).toBe('https://ha.local/api/webhook/secret-id');
+    await page.store.saveWebhooks();
+    expect(api.put).toHaveBeenCalledExactlyOnceWith('/webhooks', [
+      expect.objectContaining({ id: 'hook-1', url: 'https://draft.local/hook' }),
+    ]);
+    expect(page.store.webhooks.dirty()).toBe(false);
   });
 
-  it('places Jellyfin field errors beside the URL and token', async () => {
-    const page = await open('/settings?tab=jellyfin');
-    page.store.jellyfin.patch({ enabled: true, url: '', token: '' });
+  it('places webhook field errors beside their fields by index', async () => {
+    const page = await open('/settings?tab=webhooks');
+    page.store.webhooks.patch({
+      items: [{ ...page.store.webhooks.draft().items[0], url: '', events: [], manual: false }],
+    });
     api.put.mockRejectedValueOnce({
       error: {
-        error: 'KZ.INVALID_CONFIGURATION',
+        error: 'KZ.WEBHOOKS_INVALID',
         errors: {
-          'jellyfin.url': 'KZ.JELLYFIN_URL_REQUIRED',
-          'jellyfin.token': 'KZ.JELLYFIN_TOKEN_REQUIRED',
+          'webhooks.0.url': 'KZ.WEBHOOK_URL_REQUIRED',
+          'webhooks.0.events': 'KZ.WEBHOOK_TRIGGER_REQUIRED',
         },
       },
     });
-    await page.store.saveJellyfin();
+    await page.store.saveWebhooks();
     await settle(harness.fixture);
-    expect(harness.routeNativeElement!.querySelector('#jellyfin-url-error')?.textContent).toContain(
-      'KZ.JELLYFIN_URL_REQUIRED',
-    );
     expect(
-      harness.routeNativeElement!.querySelector('#jellyfin-token-error')?.textContent,
-    ).toContain('KZ.JELLYFIN_TOKEN_REQUIRED');
+      harness.routeNativeElement!.querySelector('#webhook-0-url-error')?.textContent,
+    ).toContain('KZ.WEBHOOK_URL_REQUIRED');
+    expect(
+      harness.routeNativeElement!.querySelector('#webhook-0-events-error')?.textContent,
+    ).toContain('KZ.WEBHOOK_TRIGGER_REQUIRED');
+    expect(page.store.webhooks.dirty()).toBe(true);
+  });
+
+  it('fills a new webhook from a preset and removing one is only a draft', async () => {
+    const page = await open('/settings?tab=webhooks');
+    const component = harness.routeDebugElement!.query(By.directive(SettingsWebhooksTabComponent))
+      .componentInstance as SettingsWebhooksTabComponent;
+    component.preset.set('jellyfin');
+    component.add();
+    await settle(harness.fixture);
+    const added = page.store.webhooks.draft().items[1];
+    expect(added).toEqual(
+      expect.objectContaining({
+        name: 'Jellyfin',
+        method: 'POST',
+        bodyMode: 'NONE',
+        events: ['download.completed'],
+      }),
+    );
+    expect(added.url).toMatch(/\/Library\/Refresh$/);
+    expect(added.headers[0].value).toContain('MediaBrowser Token=');
+    expect(component.bodyLanguage(added)).toBe('text');
+    const header = (value: string) => ({ ...added, headers: [{ name: ' content-type ', value }] });
+    expect(component.bodyLanguage(header('application/json; charset=utf-8'))).toBe('json');
+    expect(component.bodyLanguage(header('application/ld+json'))).toBe('json');
+    expect(component.bodyLanguage(header('text/plain'))).toBe('text');
+    const body = (value: string) => ({ ...added, body: value });
+    expect(component.bodyLanguage(body('  {"state": "{{download.state}}"}'))).toBe('json');
+    expect(component.jsonWithoutContentType(body('[1]'))).toBe(true);
+    expect(component.bodyLanguage(body('{{title}} finished'))).toBe('text');
+    expect(component.jsonWithoutContentType(body('{{title}} finished'))).toBe(false);
+    expect(
+      component.jsonWithoutContentType({
+        ...header('application/json'),
+        body: '{"a": 1}',
+      }),
+    ).toBe(false);
+    const input = (id: string) =>
+      harness.routeNativeElement!.querySelector<HTMLInputElement>(`#${id}`)!;
+    expect(input('webhook-1-url').type).toBe('text');
+    expect(input('webhook-1-headers-0-value').type).toBe('text');
+    expect(input('webhook-0-url').type).toBe('password');
+    component.addHeader(0);
+    await settle(harness.fixture);
+    expect(input('webhook-0-headers-0-value').type).toBe('password');
+    expect(input('webhook-0-headers-1-value').type).toBe('text');
+    component.remove(0);
+    await settle(harness.fixture);
+    expect(page.store.webhooks.draft().items.map((item) => item.name)).toEqual(['Jellyfin']);
+    expect(webhooks.map((item) => item.name)).toEqual(['Home Assistant']);
+    expect(api.put).not.toHaveBeenCalled();
   });
 
   it('disables only the saving tab and keeps success and errors scoped when switching', async () => {
@@ -349,14 +480,14 @@ describe('Settings tabs and independent drafts', () => {
     const saving = page.store.saveSearch();
     await settle(harness.fixture);
     expect(harness.routeNativeElement!.querySelector('fieldset')?.disabled).toBe(true);
-    await tab(page, 'jellyfin');
+    await tab(page, 'webhooks');
     expect(harness.routeNativeElement!.querySelector('fieldset')?.disabled).toBe(false);
-    type('#jellyfin-url', 'https://draft');
+    type('#webhook-0-name', 'Draft name');
     await settle(harness.fixture);
     finish({ ...addons, search: [addons.search[1]] });
     await saving;
     await settle(harness.fixture);
-    expect(page.store.jellyfin.dirty()).toBe(true);
+    expect(page.store.webhooks.dirty()).toBe(true);
     expect(harness.routeNativeElement!.textContent).not.toContain('KZ.SAVED');
     await tab(page, 'search');
     expect(harness.routeNativeElement!.textContent).toContain('KZ.SAVED');

@@ -29,12 +29,13 @@ class ReactiveHost {
   imports: [FormsModule, SecretInputComponent],
   template: `
     <app-secret-input inputId="model-secret" [(ngModel)]="value" />
-    <app-secret-input inputId="other-secret" [(ngModel)]="other" />
+    <app-secret-input inputId="other-secret" [(ngModel)]="other" [revealed]="revealed()" />
   `,
 })
 class ModelHost {
   value = 'from-model';
   other = 'second';
+  readonly revealed = signal(false);
 }
 
 describe('Secret input', () => {
@@ -113,6 +114,18 @@ describe('Secret input', () => {
     expect(field(fixture, 'model-secret').type).toBe('text');
     expect(field(fixture, 'other-secret').type).toBe('password');
     expect(other.value).toBe('second');
+  });
+
+  it('can start revealed and still hides with its control', async () => {
+    const fixture = TestBed.createComponent(ModelHost);
+    fixture.componentInstance.revealed.set(true);
+    await settle(fixture);
+    expect(field(fixture, 'model-secret').type).toBe('password');
+    expect(field(fixture, 'other-secret').type).toBe('text');
+    expect(toggle(fixture, 1).getAttribute('aria-label')).toBe('Hide value');
+    toggle(fixture, 1).click();
+    fixture.detectChanges();
+    expect(field(fixture, 'other-secret').type).toBe('password');
   });
 
   it('reveals and hides with a labelled button without changing the value', async () => {

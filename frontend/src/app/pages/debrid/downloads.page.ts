@@ -23,7 +23,9 @@ import {
   FinalizationProgress,
   SpeedSample,
   TransferPhase,
+  Webhook,
 } from '../../services/debrid-api.service';
+import { DownloadWebhooksComponent } from './download-webhooks.component';
 import {
   DownloadSpeedChartComponent,
   samplesToPoints,
@@ -49,6 +51,7 @@ export const STALE_PROGRESS_MS = 5000;
     ButtonModule,
     ProgressBarModule,
     DownloadSpeedChartComponent,
+    DownloadWebhooksComponent,
   ],
   templateUrl: './downloads.page.html',
   changeDetection: ChangeDetectionStrategy.Default,
@@ -61,6 +64,7 @@ export class DownloadsPage implements OnInit {
   private readonly router = inject(Router);
   private streamVersion = 0;
   readonly items = signal<DownloadStatus[]>([]);
+  readonly webhooks = signal<Webhook[]>([]);
   readonly hasRemovableHistory = computed(() =>
     this.items().some((item) => this.canRemoveFromHistory(item.request)),
   );
@@ -99,6 +103,8 @@ export class DownloadsPage implements OnInit {
     });
   }
   async ngOnInit(): Promise<void> {
+    // Webhooks only decide whether manual dispatch is offered; they never delay the downloads stream.
+    void this.loadWebhooks();
     await this.reload();
     if (this.destroy.destroyed) return;
     const stream = new EventSource(this.api.base + '/downloads/events', { withCredentials: true });
@@ -167,6 +173,14 @@ export class DownloadsPage implements OnInit {
   }
   async reload(): Promise<void> {
     await this.run(() => this.refreshItems());
+  }
+  /** Webhooks are read once; only their names and manual availability are shown here. */
+  private async loadWebhooks(): Promise<void> {
+    try {
+      this.webhooks.set(await this.api.get<Webhook[]>('/webhooks'));
+    } catch {
+      this.webhooks.set([]);
+    }
   }
   private async refreshItems(): Promise<void> {
     const version = this.streamVersion;
@@ -278,12 +292,6 @@ export class DownloadsPage implements OnInit {
       await this.refreshItems();
     });
     this.cancellingIds.update((ids) => new Set([...ids].filter((id) => id !== item.id)));
-  }
-  async notification(id: string): Promise<void> {
-    await this.run(async () => {
-      await this.api.post(`/downloads/${id}/notification/retry`);
-      await this.refreshItems();
-    });
   }
   async toggleHistory(id: string): Promise<void> {
     if (this.history()[id]) {

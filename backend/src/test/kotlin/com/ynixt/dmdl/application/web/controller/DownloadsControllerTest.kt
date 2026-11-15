@@ -3,18 +3,19 @@ package com.ynixt.dmdl.application.web.controller
 import com.ynixt.dmdl.domain.model.CategoryOrganization
 import com.ynixt.dmdl.domain.model.ContentIdentity
 import com.ynixt.dmdl.domain.model.ContentSnapshot
+import com.ynixt.dmdl.domain.model.DeliveryState
+import com.ynixt.dmdl.domain.model.DeliveryTrigger
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadState
-import com.ynixt.dmdl.domain.model.JellyfinNotification
 import com.ynixt.dmdl.domain.model.MediaCategory
-import com.ynixt.dmdl.domain.model.NotificationState
 import com.ynixt.dmdl.domain.model.OrganizationSnapshot
 import com.ynixt.dmdl.domain.model.ReleaseProvenance
 import com.ynixt.dmdl.domain.model.ReleaseReference
 import com.ynixt.dmdl.domain.model.ReleaseReferenceType
 import com.ynixt.dmdl.domain.model.ReleaseSnapshot
 import com.ynixt.dmdl.domain.model.SpeedSample
-import com.ynixt.dmdl.domain.repository.NotificationStore
+import com.ynixt.dmdl.domain.model.WebhookDelivery
+import com.ynixt.dmdl.domain.repository.WebhookDeliveryStore
 import com.ynixt.dmdl.domain.service.DownloadService
 import io.mockk.every
 import io.mockk.mockk
@@ -82,9 +83,9 @@ class DownloadsControllerTest {
     private val downloads = mockk<DownloadService>()
     private val discovery = mockk<com.ynixt.dmdl.domain.service.DiscoveryService>()
     private val configuration = mockk<com.ynixt.dmdl.domain.repository.ConfigurationStore>()
-    private val notifications = mockk<NotificationStore>()
+    private val deliveries = mockk<WebhookDeliveryStore>()
     private val controller =
-        DownloadsController(downloads, mockk(), notifications, mockk(), discovery, configuration)
+        DownloadsController(downloads, mockk(), deliveries, discovery, configuration)
 
     @AfterTest
     fun close() = controller.closeStreams()
@@ -109,11 +110,9 @@ class DownloadsControllerTest {
             )
         val finished = active.copy(id = UUID.randomUUID(), state = DownloadState.COMPLETED, completedAt = now)
         val records = AtomicReference(listOf(active, finished))
-        val notification = AtomicReference<JellyfinNotification?>(null)
+        val delivered = AtomicReference<Map<UUID, List<WebhookDelivery>>>(emptyMap())
         every { downloads.history() } answers { records.get() }
-        every { notifications.find(any()) } answers {
-            notification.get()?.takeIf { it.requestId == firstArg<UUID>() }
-        }
+        every { deliveries.forVisibleRequests() } answers { delivered.get() }
         val mvc = MockMvcBuilders.standaloneSetup(controller).build()
         val response = mvc.perform(get("/api/downloads/events")).andReturn().response
 
@@ -143,7 +142,24 @@ class DownloadsControllerTest {
         val idle = awaitContent { it.split("event:heartbeat").size > heartbeatCount }
         assertEquals(1, idle.split("event:download-updates").size - 1)
 
-        notification.set(JellyfinNotification(completed.id, NotificationState.SENT, attempts = 1))
+        delivered.set(
+            mapOf(
+                completed.id to
+                    listOf(
+                        WebhookDelivery(
+                            UUID.randomUUID(),
+                            completed.id,
+                            UUID.randomUUID(),
+                            "Home Assistant",
+                            DeliveryTrigger.AUTOMATIC,
+                            "download.completed",
+                            DeliveryState.SENT,
+                            attempts = 1,
+                            createdAt = now,
+                        ),
+                    ),
+            ),
+        )
         val notified = awaitContent { it.contains("\"state\":\"SENT\"") }
         assertEquals(2, notified.split("event:download-updates").size - 1)
 

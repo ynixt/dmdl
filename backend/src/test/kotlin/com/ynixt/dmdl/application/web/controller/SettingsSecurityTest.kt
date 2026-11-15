@@ -4,11 +4,9 @@ import com.ynixt.dmdl.application.config.SecurityConfig
 import com.ynixt.dmdl.application.config.StorageProperties
 import com.ynixt.dmdl.domain.gateway.AddonGateway
 import com.ynixt.dmdl.domain.gateway.FileFinalizer
-import com.ynixt.dmdl.domain.gateway.JellyfinGateway
 import com.ynixt.dmdl.domain.model.AddonConfiguration
 import com.ynixt.dmdl.domain.model.AddonManifest
 import com.ynixt.dmdl.domain.model.ApplicationSettings
-import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.`when`
@@ -39,8 +37,6 @@ class SettingsSecurityTest {
 
     @MockitoBean lateinit var addons: AddonGateway
 
-    @MockitoBean lateinit var jellyfin: JellyfinGateway
-
     @MockitoBean lateinit var storage: StorageProperties
 
     @MockitoBean lateinit var finalizer: FileFinalizer
@@ -48,13 +44,13 @@ class SettingsSecurityTest {
     @MockitoBean lateinit var backfill: com.ynixt.dmdl.domain.service.MetadataManifestBackfill
 
     @Test
-    fun `authenticated addon URLs and Jellyfin tokens are exposed with no store headers`() {
+    fun `authenticated addon URLs are exposed with no store headers`() {
         val session = MockHttpSession()
         val context = SecurityContextHolder.createEmptyContext()
         context.authentication =
             UsernamePasswordAuthenticationToken.authenticated("fixture", "hash", listOf(SimpleGrantedAuthority("ROLE_ADMIN")))
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context)
-        `when`(store.settings()).thenReturn(ApplicationSettings("fixture", "hash", jellyfin = JellyfinSettings(token = "secret-token")))
+        `when`(store.settings()).thenReturn(ApplicationSettings("fixture", "hash"))
         `when`(storage.root).thenReturn("./media")
         val addon =
             AddonConfiguration(
@@ -77,8 +73,7 @@ class SettingsSecurityTest {
             .perform(get("/api/settings").session(session))
             .andExpect(status().isOk)
             .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
-            .andExpect(jsonPath("$.jellyfin.token").value("secret-token"))
-            .andExpect(jsonPath("$.jellyfin.tokenConfigured").doesNotExist())
+            .andExpect(jsonPath("$.jellyfin").doesNotExist())
     }
 
     @Test

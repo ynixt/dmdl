@@ -23,8 +23,6 @@ enum class DownloadState {
     val reservesCapacity: Boolean get() = this in setOf(PREPARING, TRANSFERRING, FINALIZING)
 }
 
-enum class NotificationState { PENDING, SENT, FAILED, SKIPPED }
-
 enum class PlacementState { NONE, PLANNED, PLACED }
 
 /** Source identities are opaque; neither IMDb nor catalog membership is required. */
@@ -252,12 +250,4 @@ data class DownloadEvent(
     val state: DownloadState,
     val occurredAt: Instant,
     val message: String? = null,
-)
-
-data class JellyfinNotification(
-    val requestId: UUID,
-    val state: NotificationState,
-    val attempts: Int = 0,
-    val attemptedAt: Instant? = null,
-    val error: String? = null,
 )

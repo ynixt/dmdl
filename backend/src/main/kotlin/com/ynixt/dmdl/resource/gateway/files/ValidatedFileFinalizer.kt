@@ -183,7 +183,7 @@ class ValidatedFileFinalizer(
         exclusiveLink(target, temporary)
         val placedHash = placedHash(target, temporary, expected, checks, reference, hashes)
         require(placedHash != null) { "Placed output failed identity verification" }
-        // Keep the witness until COMPLETED and notification bookkeeping commit together.
+        // Keep the witness until COMPLETED and its webhook deliveries commit together.
         return placed(current, reference ?: placedHash.takeIf(String::isNotEmpty)).also(saveCheckpoint)
     }
 

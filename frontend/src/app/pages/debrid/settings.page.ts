@@ -8,7 +8,7 @@ import { SettingsDraftStore, SettingsTab } from './settings-draft.store';
 import { SettingsMetadataTabComponent } from './settings-metadata-tab.component';
 import { SettingsSearchTabComponent } from './settings-search-tab.component';
 import { SettingsStorageTabComponent } from './settings-storage-tab.component';
-import { SettingsJellyfinTabComponent } from './settings-jellyfin-tab.component';
+import { SettingsWebhooksTabComponent } from './settings-webhooks-tab.component';
 
 @Component({
   selector: 'app-settings',
@@ -18,7 +18,7 @@ import { SettingsJellyfinTabComponent } from './settings-jellyfin-tab.component'
     SettingsMetadataTabComponent,
     SettingsSearchTabComponent,
     SettingsStorageTabComponent,
-    SettingsJellyfinTabComponent,
+    SettingsWebhooksTabComponent,
   ],
   providers: [SettingsDraftStore],
   templateUrl: './settings.page.html',
@@ -36,7 +36,7 @@ export class SettingsPage implements OnInit {
     { id: 'metadata', icon: 'pi pi-info-circle' },
     { id: 'search', icon: 'pi pi-search' },
     { id: 'storage', icon: 'pi pi-folder' },
-    { id: 'jellyfin', icon: 'pi pi-video' },
+    { id: 'webhooks', icon: 'pi pi-send' },
   ];
 
   async ngOnInit(): Promise<void> {

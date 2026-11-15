@@ -111,6 +111,7 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.54.1.0")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation("com.samskivert:jmustache")
 
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-test")

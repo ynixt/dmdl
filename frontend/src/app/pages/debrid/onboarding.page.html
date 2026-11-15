@@ -171,58 +171,6 @@
           <h3>{{ 'KZ.TRANSFER_SETTINGS' | translate }}</h3>
           <app-transfer-fields [settings]="value.settings" prefix="setup-transfer" />
         }
-        @if (step() === 3) {
-          <div class="inline-choice">
-            <p-toggleswitch
-              inputId="setup-jellyfin"
-              [(ngModel)]="value.settings.jellyfin.enabled"
-            /><label for="setup-jellyfin">{{ 'KZ.JELLYFIN_OPTIONAL' | translate }}</label>
-          </div>
-          @if (value.settings.jellyfin.enabled) {
-            <div class="field">
-              <label for="setup-jellyfin-url">{{ 'KZ.SERVER_URL' | translate }}</label>
-              <input
-                pInputText
-                id="setup-jellyfin-url"
-                [(ngModel)]="value.settings.jellyfin.url"
-                (ngModelChange)="clearConnectionTest('JELLYFIN')"
-              />
-            </div>
-            <div class="field">
-              <label for="setup-jellyfin-token">{{ 'KZ.API_TOKEN' | translate }}</label>
-              <app-secret-input
-                inputId="setup-jellyfin-token"
-                kind="secret"
-                [(ngModel)]="value.settings.jellyfin.token"
-                (ngModelChange)="clearConnectionTest('JELLYFIN')"
-                [describedBy]="connectionTests()['JELLYFIN'] ? 'setup-test-result-JELLYFIN' : null"
-              />
-              <p-button
-                [label]="'KZ.TEST_CONNECTION' | translate"
-                [ariaLabel]="('KZ.TEST_CONNECTION' | translate) + ' Jellyfin'"
-                icon="pi pi-check-circle"
-                severity="secondary"
-                (onClick)="testJellyfin()"
-                [loading]="testingConnection() === 'JELLYFIN'"
-                [disabled]="
-                  busy() ||
-                  !value.settings.jellyfin.url?.trim() ||
-                  !value.settings.jellyfin.token?.trim()
-                "
-              />
-              @if (connectionTests()['JELLYFIN']; as result) {
-                <p
-                  id="setup-test-result-JELLYFIN"
-                  [attr.role]="result.ok ? 'status' : 'alert'"
-                  [class.error]="!result.ok"
-                  [class.hint]="result.ok"
-                >
-                  {{ result.message | translate }}
-                </p>
-              }
-            </div>
-          }
-        }
       </fieldset>
       <footer class="wizard-footer">
         @if (step() === steps.length - 1) {
@@ -230,7 +178,7 @@
             [label]="'KZ.SAVE_COMPLETE_SETUP' | translate"
             icon="pi pi-check"
             (onClick)="complete()"
-            [loading]="busy() && !testingConnection()"
+            [loading]="busy()"
             [disabled]="busy()"
           />
         } @else {
@@ -239,7 +187,7 @@
             icon="pi pi-arrow-right"
             iconPos="right"
             (onClick)="advance()"
-            [loading]="busy() && !testingConnection()"
+            [loading]="busy()"
             [disabled]="busy()"
           />
         }

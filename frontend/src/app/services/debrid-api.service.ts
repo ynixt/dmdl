@@ -155,7 +155,6 @@ export interface OnboardingDraft {
     maxConcurrentDownloads: number;
     organization: Organization;
     transfer: Transfer;
-    jellyfin: { enabled: boolean; url?: string; token?: string };
   };
   metadataUrl: string;
   metadataName: string;
@@ -210,7 +209,6 @@ export interface Settings {
   storageRoot: string;
   onboardingCompleted: boolean;
   configurationRevision: number;
-  jellyfin: { enabled: boolean; url?: string | null; token?: string | null };
 }
 export interface Download {
   id: string;
@@ -259,9 +257,61 @@ export interface Download {
     fileAllocationOverride?: string;
   };
 }
+export type WebhookEvent =
+  | 'download.requested'
+  | 'download.transferring'
+  | 'download.needs_action'
+  | 'download.paused'
+  | 'download.failed'
+  | 'download.cancelled'
+  | 'download.completed';
+export interface WebhookHeader {
+  name: string;
+  value: string;
+}
+export interface Webhook {
+  id?: string;
+  name: string;
+  method: string;
+  url: string;
+  headers: WebhookHeader[];
+  bodyMode: 'NONE' | 'TEMPLATE';
+  body?: string | null;
+  events: WebhookEvent[];
+  manual: boolean;
+  enabled: boolean;
+}
+export interface WebhookPreview {
+  method: string;
+  url: string;
+  headers: WebhookHeader[];
+  body?: string | null;
+}
+export interface WebhookTestResult {
+  ok: boolean;
+  status?: number | null;
+  error?: string | null;
+}
+export type DeliveryState = 'PENDING' | 'SENT' | 'FAILED';
+export interface WebhookDelivery {
+  id: string;
+  requestId: string;
+  webhookId?: string | null;
+  webhookName: string;
+  trigger: 'AUTOMATIC' | 'MANUAL';
+  /** Event key; null for a manual dispatch. */
+  event?: WebhookEvent | null;
+  state: DeliveryState;
+  inProgress: boolean;
+  attempts: number;
+  createdAt: string;
+  attemptedAt?: string | null;
+  httpStatus?: number | null;
+  error?: string | null;
+}
 export interface DownloadStatus {
   request: Download;
-  notification?: { state: string; error?: string; attempts: number };
+  deliveries?: WebhookDelivery[];
 }
 export interface DownloadEvent {
   id: string;

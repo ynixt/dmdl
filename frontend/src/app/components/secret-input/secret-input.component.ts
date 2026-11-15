@@ -8,11 +8,13 @@ import {
   inject,
   Injector,
   input,
+  OnInit,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
-import { PasswordModule } from 'primeng/password';
+import { Password, PasswordModule } from 'primeng/password';
 
 /**
  * - `current-password`: the user's own password when signing in.
@@ -25,7 +27,8 @@ export type SecretInputKind = 'current-password' | 'new-password' | 'secret';
 /**
  * Masked input with a keyboard-accessible show/hide control, usable with both
  * `formControlName` and `ngModel`. The inner `<input>` receives `inputId`, so `<label for>`
- * keeps pointing at the real field.
+ * keeps pointing at the real field. It starts masked unless `revealed` is set when it is created,
+ * for example for a value the user is typing for the first time.
  */
 @Component({
   selector: 'app-secret-input',
@@ -41,7 +44,7 @@ export type SecretInputKind = 'current-password' | 'new-password' | 'secret';
   templateUrl: './secret-input.component.html',
   styleUrl: './secret-input.component.scss',
 })
-export class SecretInputComponent implements ControlValueAccessor {
+export class SecretInputComponent implements ControlValueAccessor, OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -51,6 +54,10 @@ export class SecretInputComponent implements ControlValueAccessor {
   readonly describedBy = input<string | null>(null);
   readonly invalid = input(false);
   readonly disabled = input(false);
+  /** Initial visibility only; later changes are left to the show/hide control. */
+  readonly revealed = input(false);
+
+  @ViewChild(Password, { static: true }) private readonly password!: Password;
 
   protected readonly value = signal<string | null>(null);
   private readonly formDisabled = signal(false);
@@ -76,6 +83,10 @@ export class SecretInputComponent implements ControlValueAccessor {
       },
     };
   });
+
+  ngOnInit(): void {
+    this.password.unmasked = this.revealed();
+  }
 
   private onChange: (value: string | null) => void = () => undefined;
   private onTouched: () => void = () => undefined;

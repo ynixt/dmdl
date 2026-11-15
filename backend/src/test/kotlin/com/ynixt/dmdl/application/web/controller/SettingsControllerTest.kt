@@ -3,14 +3,12 @@ package com.ynixt.dmdl.application.web.controller
 import com.ynixt.dmdl.application.config.StorageProperties
 import com.ynixt.dmdl.domain.gateway.AddonGateway
 import com.ynixt.dmdl.domain.gateway.FileFinalizer
-import com.ynixt.dmdl.domain.gateway.JellyfinGateway
 import com.ynixt.dmdl.domain.model.AddonCatalog
 import com.ynixt.dmdl.domain.model.AddonConfiguration
 import com.ynixt.dmdl.domain.model.AddonFailure
 import com.ynixt.dmdl.domain.model.AddonManifest
 import com.ynixt.dmdl.domain.model.AddonResource
 import com.ynixt.dmdl.domain.model.ApplicationSettings
-import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import io.mockk.every
 import io.mockk.mockk
@@ -19,7 +17,7 @@ import org.junit.jupiter.api.Test
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
+import kotlin.test.assertFalse
 
 class SettingsControllerTest {
     @Test
@@ -63,23 +61,22 @@ class SettingsControllerTest {
 
     private val store = mockk<ConfigurationStore>(relaxed = true)
     private val addons = mockk<AddonGateway>()
-    private val jellyfin = mockk<JellyfinGateway>(relaxed = true)
     private val backfill = mockk<com.ynixt.dmdl.domain.service.MetadataManifestBackfill>()
     private val controller =
-        SettingsController(store, addons, jellyfin, StorageProperties(), mockk<FileFinalizer>(relaxed = true), backfill)
+        SettingsController(store, addons, StorageProperties(), mockk<FileFinalizer>(relaxed = true), backfill)
     private val manifest =
         AddonManifest(
             "fixture",
             "Fixture",
             listOf("movie"),
-            listOf(AddonResource("stream", emptyList(), emptyList()), AddonResource("meta", emptyList(), emptyList())),
+            listOf("stream", "meta", "catalog").map { AddonResource(it, emptyList(), emptyList()) },
             listOf(AddonCatalog("movies", "movie", "Movies", true)),
         )
     private val first = AddonConfiguration(UUID.randomUUID(), 7, "https://first/manifest.json", manifest)
     private val second = AddonConfiguration(UUID.randomUUID(), 3, "https://second/manifest.json", manifest, position = 1)
     private var search = listOf(first, second)
     private var metadata = first
-    private var settings = ApplicationSettings("fixture", "hash", jellyfin = JellyfinSettings(false, "https://jellyfin", "stored-token"))
+    private var settings = ApplicationSettings("fixture", "hash")
 
     init {
         every { store.searchAddons() } answers { search }
@@ -122,13 +119,13 @@ class SettingsControllerTest {
 
     @Test
     fun `invalid row is indexed and persists nothing`() {
-        every { addons.manifest(any()) } throws AddonFailure("secret must not escape", "KZ.ADDON_SEARCH_INCOMPATIBLE")
+        every { addons.manifest(any()) } throws AddonFailure("secret must not escape", "KZ.ADDON_UNAUTHORIZED")
         val error =
             assertFailsWith<SettingsValidationFailure> {
                 controller.replaceSearch(listOf(input(first), input(second).copy(manifestUrl = "https://bad")))
             }
         assertEquals("KZ.ADDONS_INVALID", error.code)
-        assertEquals(mapOf("search.1.manifestUrl" to "KZ.ADDON_SEARCH_INCOMPATIBLE"), error.errors)
+        assertEquals(mapOf("search.1.manifestUrl" to "KZ.ADDON_UNAUTHORIZED"), error.errors)
         assertEquals(listOf(first, second), search)
         verify(exactly = 0) { store.replaceSearchAddons(any()) }
     }
@@ -174,30 +171,99 @@ class SettingsControllerTest {
         )
     }
 
+    private fun resources(vararg names: String) = manifest.copy(resources = names.map { AddonResource(it, emptyList(), emptyList()) })
+
     @Test
-    fun `settings expose the token and blank clears it`() {
-        assertEquals("stored-token", (controller.settings()["jellyfin"] as Map<*, *>)["token"])
-        controller.update(SettingsInput(jellyfin = JellyfinSettings(false, "https://jellyfin", "")))
-        assertNull(settings.jellyfin.token)
+    fun `equivalent URL reuses a legacy stored search manifest and rejects it when stream is missing`() {
+        search = listOf(first, second.copy(manifest = resources("catalog", "meta")))
+        val error =
+            assertFailsWith<SettingsValidationFailure> {
+                controller.replaceSearch(listOf(input(first), input(search[1]).copy(manifestUrl = "stremio://second/", name = "Renamed")))
+            }
+        assertEquals("KZ.ADDONS_INVALID", error.code)
+        assertEquals(mapOf("search.1.manifestUrl" to "KZ.ADDON_MISSING_STREAM"), error.errors)
+        verify(exactly = 0) { addons.manifest(any()) }
+        verify(exactly = 0) { store.replaceSearchAddons(any()) }
     }
 
     @Test
-    fun `enabled Jellyfin needs both fields and test never falls back to stored token`() {
+    fun `legacy incompatible search manifest blocks toggles and reorders until its URL is corrected`() {
+        val legacy = second.copy(manifest = resources("meta"))
+        search = listOf(first, legacy)
+        listOf(
+            listOf(input(first), input(legacy).copy(enabled = false)) to "search.1.manifestUrl",
+            listOf(input(legacy), input(first)) to "search.0.manifestUrl",
+        ).forEach { (submitted, field) ->
+            assertEquals(
+                mapOf(field to "KZ.ADDON_MISSING_STREAM"),
+                assertFailsWith<SettingsValidationFailure> { controller.replaceSearch(submitted) }.errors,
+            )
+        }
+        assertEquals(listOf(first, legacy), search)
+        every { addons.manifest("https://fixed/manifest.json") } returns manifest
+        controller.replaceSearch(listOf(input(legacy).copy(manifestUrl = "https://fixed"), input(first)))
+        assertEquals(listOf(legacy.id, first.id), search.map { it.id })
+        assertEquals(listOf(4L, 7L), search.map { it.revision })
+        verify(exactly = 1) { addons.manifest(any()) }
+    }
+
+    @Test
+    fun `new disabled and changed search entries are validated and rejected atomically`() {
+        every { addons.manifest("https://nostream/manifest.json") } returns resources("catalog", "meta")
+        every { addons.manifest("https://ok/manifest.json") } returns manifest
         val error =
             assertFailsWith<SettingsValidationFailure> {
-                controller.update(SettingsInput(jellyfin = JellyfinSettings(true, "", "")))
+                controller.replaceSearch(
+                    listOf(
+                        input(first).copy(manifestUrl = "https://ok"),
+                        input(second),
+                        SearchAddonInput(manifestUrl = "https://nostream", enabled = false),
+                    ),
+                )
             }
-        assertEquals(setOf("jellyfin.url", "jellyfin.token"), error.errors.keys)
-        assertEquals("stored-token", settings.jellyfin.token)
+        assertEquals(mapOf("search.2.manifestUrl" to "KZ.ADDON_MISSING_STREAM"), error.errors)
         assertEquals(
-            "KZ.JELLYFIN_TOKEN_REQUIRED",
+            mapOf("search.0.manifestUrl" to "KZ.ADDON_MISSING_STREAM"),
             assertFailsWith<SettingsValidationFailure> {
-                controller.testJellyfin(JellyfinSettings(true, "https://jellyfin", ""))
-            }.errors["jellyfin.token"],
+                controller.replaceSearch(listOf(input(first).copy(manifestUrl = "https://nostream"), input(second)))
+            }.errors,
         )
-        verify(exactly = 0) { jellyfin.test(any()) }
-        val draft = JellyfinSettings(true, "https://draft", "draft-token")
-        controller.testJellyfin(draft)
-        verify { jellyfin.test(draft) }
+        assertEquals(listOf(first, second), search)
+        verify(exactly = 0) { store.replaceSearchAddons(any()) }
+    }
+
+    @Test
+    fun `metadata replacement missing a resource keeps the stored addon`() {
+        mapOf(
+            "https://nometa/manifest.json" to (resources("catalog") to "KZ.ADDON_MISSING_META"),
+            "https://nocatalog/manifest.json" to (resources("meta", "stream") to "KZ.ADDON_MISSING_CATALOG"),
+            "https://neither/manifest.json" to (resources("stream") to "KZ.ADDON_MISSING_CATALOG_META"),
+        ).forEach { (url, case) ->
+            every { addons.manifest(url) } returns case.first
+            assertEquals(
+                mapOf("metadata.manifestUrl" to case.second),
+                assertFailsWith<SettingsValidationFailure> { controller.metadata(AddonInput(manifestUrl = url)) }.errors,
+            )
+        }
+        assertEquals(first, metadata)
+        verify(exactly = 0) { store.saveMetadata(any()) }
+    }
+
+    @Test
+    fun `metadata rename of a legacy stored manifest without catalog fails without fetching`() {
+        metadata = first.copy(manifest = resources("meta", "stream"))
+        assertEquals(
+            mapOf("metadata.manifestUrl" to "KZ.ADDON_MISSING_CATALOG"),
+            assertFailsWith<SettingsValidationFailure> {
+                controller.metadata(AddonInput(manifestUrl = "stremio://first/", name = "Renamed"))
+            }.errors,
+        )
+        verify(exactly = 0) { addons.manifest(any()) }
+        verify(exactly = 0) { store.saveMetadata(any()) }
+    }
+
+    @Test
+    fun `settings no longer expose Jellyfin fields`() {
+        assertFalse(controller.settings().containsKey("jellyfin"))
     }
 }

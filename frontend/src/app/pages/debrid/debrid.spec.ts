@@ -97,9 +97,9 @@ describe('Manual discovery journey', () => {
             fileAllocation: 'PREALLOC',
             ipv6Enabled: true,
           },
-          jellyfin: { enabled: false, token: '' },
         };
       if (path === '/settings/stream-badges/defaults') return { streamBadgeJson: '{"imports":[]}' };
+      if (path === '/webhooks') return [];
       if (path === '/setup') return { missing: [], ready: true, completed: false };
       return {
         metadata: {

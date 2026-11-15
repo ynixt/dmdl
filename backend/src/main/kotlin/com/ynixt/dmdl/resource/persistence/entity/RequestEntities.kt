@@ -39,16 +39,6 @@ class DownloadEventEntity(
 )
 
 @Entity
-@Table(name = "jellyfin_notification")
-class JellyfinNotificationEntity(
-    @Id var requestId: String,
-    var state: String,
-    var attempts: Int,
-    var attemptedAt: String?,
-    var error: String?,
-)
-
-@Entity
 @Table(name = "metadata_addon")
 class MetadataAddonEntity(
     @Id var singleton: Int = 1,
@@ -87,9 +77,6 @@ class ApplicationSettingsEntity(
     var organizationJson: String,
     var transferOptionsJson: String,
     @Convert(converter = NumericBooleanConverter::class) var onboardingCompleted: Boolean,
-    @Convert(converter = NumericBooleanConverter::class) var jellyfinEnabled: Boolean,
-    var jellyfinUrl: String?,
-    var jellyfinToken: String?,
     var createdAt: String,
     var updatedAt: String,
     @Column(columnDefinition = "INTEGER") var configurationRevision: Long = 0,

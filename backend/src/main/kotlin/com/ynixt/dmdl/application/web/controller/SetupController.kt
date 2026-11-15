@@ -3,13 +3,11 @@ package com.ynixt.dmdl.application.web.controller
 import com.ynixt.dmdl.application.web.dto.StrictRequest
 import com.ynixt.dmdl.domain.gateway.AddonGateway
 import com.ynixt.dmdl.domain.gateway.FileFinalizer
-import com.ynixt.dmdl.domain.gateway.JellyfinGateway
 import com.ynixt.dmdl.domain.model.AddonConfiguration
 import com.ynixt.dmdl.domain.model.AddonFailure
 import com.ynixt.dmdl.domain.model.ApplicationSettings
 import com.ynixt.dmdl.domain.model.ConfigurationConflict
 import com.ynixt.dmdl.domain.model.ConfigurationValidation
-import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.model.PreparedSetup
 import com.ynixt.dmdl.domain.model.StreamBadgeRules
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
@@ -67,7 +65,6 @@ data class SetupValidationResult(
 class SetupController(
     private val store: ConfigurationStore,
     addons: AddonGateway,
-    private val jellyfin: JellyfinGateway,
     private val finalizer: FileFinalizer,
     private val json: ObjectMapper,
 ) {
@@ -78,7 +75,7 @@ class SetupController(
     fun validate(
         @RequestBody input: ValidateSetupInput,
     ): SetupValidationResult {
-        require(input.step in setOf("metadata", "search", "storage", "jellyfin")) { "Unknown setup step" }
+        require(input.step in setOf("metadata", "search", "storage")) { "Unknown setup step" }
         return prepare(input.draft, input.step).first
     }
 
@@ -172,7 +169,6 @@ class SetupController(
                         maxConcurrentDownloads = input.maxConcurrentDownloads ?: old.maxConcurrentDownloads,
                         organization = requireNotNull(input.organization).copy(revision = old.organization.revision + 1),
                         transfer = input.transfer ?: old.transfer,
-                        jellyfin = input.jellyfin ?: JellyfinSettings(),
                         streamBadgeJson = input.streamBadgeJson ?: old.streamBadgeJson,
                     )
                 val value = requireNotNull(settings)
@@ -202,14 +198,7 @@ class SetupController(
                         }
                     }
                 }
-                validation.settings(value.copy(jellyfin = JellyfinSettings()), storageCheck = {})
-            }
-        }
-        if (all || step == "jellyfin") {
-            check("jellyfin") {
-                val value = input.jellyfin ?: JellyfinSettings()
-                validation.jellyfin(value)
-                if (value.enabled) jellyfin.test(value)
+                validation.settings(value, storageCheck = {})
             }
         }
         return SetupValidationResult(errors) to settings?.let { ValidatedDraft(it, metadata, search) }

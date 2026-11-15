@@ -84,6 +84,7 @@ describe('Downloads page insights', () => {
     streamListeners = {};
     records = [];
     api.get.mockImplementation(async (path: string) => {
+      if (path === '/webhooks') return [];
       const [, id, kind] = /^\/downloads\/([^/]+)\/([a-z-]+)$/.exec(path) ?? [];
       if (kind === 'history') return [...(events[id] ?? [])];
       if (kind === 'speed-history') return [...(speedHistory[id] ?? [])];
@@ -166,12 +167,27 @@ describe('Downloads page insights', () => {
     expect(section('active').querySelector('.completed-at')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('app-download-speed-chart')).toBeNull();
 
-    update.notification = { state: 'SENT', attempts: 1 };
+    update.deliveries = [
+      {
+        id: 'delivery',
+        requestId: 'active',
+        webhookId: 'hook',
+        webhookName: 'Home Assistant',
+        trigger: 'AUTOMATIC',
+        event: 'download.completed',
+        state: 'SENT',
+        inProgress: false,
+        attempts: 1,
+        createdAt: '2026-11-14T15:00:00Z',
+        httpStatus: 204,
+      },
+    ];
     streamListeners['download-updates']({ data: JSON.stringify([update]) } as MessageEvent);
     await settle();
-    expect(section('active').querySelector('.notification')?.textContent).toContain(
-      'KZ.NOTIFY_SENT',
-    );
+    const deliveries = section('active').querySelector('.notification')?.textContent;
+    expect(deliveries).toContain('Home Assistant');
+    expect(deliveries).toContain('KZ.WEBHOOK_EVENT_COMPLETED');
+    expect(deliveries).toContain('KZ.WEBHOOK_STATE_SENT');
 
     fixture.componentInstance.history.set({
       completed: [{ id: 'event', state: 'COMPLETED', occurredAt: '2026-11-14T14:59:00Z' }],

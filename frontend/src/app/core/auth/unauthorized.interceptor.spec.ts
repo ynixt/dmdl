@@ -86,6 +86,8 @@ describe('Expired session handling during page operations', () => {
   });
 
   afterEach(() => {
+    // The downloads page also reads webhooks to offer manual dispatch.
+    http.match('/api/webhooks').forEach((request) => request.flush([]));
     http.verify();
     vi.unstubAllGlobals();
   });

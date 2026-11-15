@@ -17,7 +17,7 @@ Debrid Media Downloader (dmdl) is an easy way to download movies and TV shows us
 - Several destination folders per category (movies, series, anime), with a default for each.
 - Jellyfin-friendly folder names with editable templates and a live preview; original release file names are kept.
 - Tunable aria2 settings: concurrent downloads, connections, split size, retries, timeouts and more.
-- Optional library refresh on an existing Jellyfin server after each download.
+- Webhooks to Jellyfin, Home Assistant, ntfy or any HTTP service when downloads change state, or on demand.
 - Guided setup wizard, single admin account and persistent login.
 - English and Brazilian Portuguese interface.
 - One Docker image (web UI + backend + aria2) plus Redis.
@@ -58,12 +58,58 @@ Open <http://localhost:8080> (or the port you set in `DMDL_PORT`).
    - **Metadata addon** – paste the manifest URL of a metadata addon such as [AIOMetadata](https://aiometadata.elfhosted.com/configure) or Cinemeta.
    - **Search addons** – paste the manifest URL of one or more stream addons such as [AIOStreams](https://aiostreams.viren070.me/) or Torrentio. **Configure your debrid service inside the addon**; dmdl only uses the HTTP links it returns.
    - **Storage** – add at least one folder for each category you want to use. Paths are paths inside the container, so anything under `DMDL_MEDIA_PATH` starts with `/media`.
-   - **Jellyfin** (optional) – server URL and API token to refresh your library after each download.
 3. Search a title, pick a release and a destination folder, and download.
+4. Optionally add [webhooks](#webhooks) in **Settings → Webhooks**, for example to refresh Jellyfin or get a phone notification.
 
 ### Extra destination folders
 
 To save to more than one disk, mount each folder into the `dmdl` service in `compose.yaml` and register its container path in **Settings**. For example, adding `D:/Movies:/media/hdd/movies` and `E:/Series:/media/ssd/series` under `volumes:` lets you use `/media/hdd/movies` and `/media/ssd/series` as destinations.
+
+### Webhooks
+
+A webhook is an HTTP request dmdl sends to another service. Add as many as you want in **Settings → Webhooks**. Each one has a method, a URL, optional headers and either no body or a [Mustache](https://mustache.github.io/mustache.5.html) template body. A webhook failure never affects the download.
+
+A webhook can be sent automatically on any of these events, and/or be available for manual dispatch from any download on the **Downloads** page:
+
+| Event | When |
+| --- | --- |
+| `download.requested` | The download was created (once). |
+| `download.transferring` | It starts transferring, including after a resume or a retry. |
+| `download.needs_action` | It waits for you to choose a file. |
+| `download.paused` | It was paused. |
+| `download.failed` | It failed. |
+| `download.cancelled` | It was cancelled. |
+| `download.completed` | The file was placed in its destination. |
+
+The URL, header values and body can use these variables: `{{event}}` (empty for a manual dispatch), `{{trigger}}` (`automatic` or `manual`), `{{#manual}}…{{/manual}}`, `{{timestamp}}`, `{{download.id}}`, `{{download.state}}`, `{{title}}`, `{{category}}`, `{{year}}`, `{{season}}`, `{{episode}}`, `{{episodeTitle}}`, `{{posterUrl}}`, `{{provider}}`, and `{{path}}` / `{{size}}` on completion or `{{error}}` on failure. A section such as `{{#error}}…{{/error}}` is only rendered when the value exists. Values are URL-encoded in the URL and JSON-escaped in the body when the `Content-Type` header is JSON.
+
+Use **Preview** to see the rendered request and **Test connection** to send one real request with sample data before saving. Every delivery is listed on its download; a failed automatic delivery can be resent from there. There is no automatic retry.
+
+Presets fill the form for a **Jellyfin 10.11+** library refresh, a **Home Assistant** webhook trigger and **ntfy**. Replace the placeholders in capitals. URLs and header values are treated as secrets because they often contain tokens.
+
+#### Example: phone notification through Home Assistant
+
+1. In dmdl, add a webhook from the **Home Assistant** preset and set its URL to `http://<home-assistant>:8123/api/webhook/dmdl-downloads`.
+2. In Home Assistant, add an automation such as:
+
+   ```yaml
+   alias: dmdl download finished
+   triggers:
+     - trigger: webhook
+       webhook_id: dmdl-downloads
+       allowed_methods: [POST]
+       local_only: true
+   conditions:
+     - condition: template
+       value_template: "{{ trigger.json.event == 'download.completed' }}"
+   actions:
+     - action: notify.mobile_app_your_phone
+       data:
+         title: Download finished
+         message: "{{ trigger.json.title }}"
+   ```
+
+`local_only: true` requires dmdl to reach Home Assistant from your local network.
 
 ### Using your own Redis
 
@@ -92,6 +138,8 @@ docker compose up -d
 ```
 
 Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.0.7`, or use `edge` for the latest `master` build.
+
+Upgrading from a version with the built-in Jellyfin integration converts its settings into a **Jellyfin** webhook sent on `download.completed`, together with its notification history. That migration removes the old Jellyfin settings, so going back to an older version requires restoring a backup of the `application_data` volume taken before the upgrade.
 
 The navbar shows which build is running: the release tag (such as `v0.0.7`) for releases, the short commit for `edge` builds, and `local` for images you built yourself without `make up`.
 

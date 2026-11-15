@@ -46,14 +46,36 @@ class StremioAddonGateway(
 
     override fun manifest(url: String): AddonManifest {
         val root = get(normalizeAddonManifestUrl(url))
+        return try {
+            parseManifest(root)
+        } catch (error: AddonFailure) {
+            throw error
+        } catch (_: Exception) {
+            throw AddonFailure("Addon returned a malformed manifest", "KZ.ADDON_INVALID_MANIFEST")
+        }
+    }
+
+    private fun parseManifest(root: JsonNode): AddonManifest {
+        if (!root.isObject) throw AddonFailure("Addon manifest is not an object", "KZ.ADDON_INVALID_MANIFEST")
+        listOf("types", "resources", "catalogs", "idPrefixes").forEach { key ->
+            if (root[key]?.let { !it.isArray && !it.isNull } == true) {
+                throw AddonFailure("Addon manifest $key must be an array", "KZ.ADDON_INVALID_MANIFEST")
+            }
+        }
         val types = root["types"]?.toList()?.map { it.asString() }.orEmpty()
         val resources =
             root["resources"]
                 ?.toList()
                 ?.map { node ->
                     if (node.isString) {
-                        AddonResource(node.asString(), types, root["idPrefixes"]?.toList()?.map { it.asString() }.orEmpty())
+                        val name =
+                            node.asString().takeIf(String::isNotBlank)
+                                ?: throw AddonFailure("Addon resource name is blank", "KZ.ADDON_INVALID_MANIFEST")
+                        AddonResource(name, types, root["idPrefixes"]?.toList()?.map { it.asString() }.orEmpty())
                     } else {
+                        if (!node.isObject || node["name"]?.isString != true) {
+                            throw AddonFailure("Addon resource declaration is malformed", "KZ.ADDON_INVALID_MANIFEST")
+                        }
                         AddonResource(
                             text(node, "name"),
                             node["types"]?.toList()?.map { it.asString() } ?: types,

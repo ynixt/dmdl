@@ -6,7 +6,6 @@ import com.ynixt.dmdl.domain.model.ApplicationSettings
 import com.ynixt.dmdl.domain.model.Aria2TransferOptions
 import com.ynixt.dmdl.domain.model.ConfigurationConflict
 import com.ynixt.dmdl.domain.model.FinalizationChecks
-import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.model.OrganizationSettings
 import com.ynixt.dmdl.domain.model.PreparedSetup
 import com.ynixt.dmdl.domain.model.StreamBadgeRules
@@ -43,7 +42,6 @@ class JpaConfigurationStore(
                 json.readValue(it.organizationJson, OrganizationSettings::class.java),
                 json.readValue(it.transferOptionsJson, Aria2TransferOptions::class.java),
                 it.onboardingCompleted,
-                JellyfinSettings(it.jellyfinEnabled, it.jellyfinUrl, it.jellyfinToken),
                 it.configurationRevision,
                 it.setupSubmissionId?.let(UUID::fromString),
                 it.setupFingerprint,
@@ -106,9 +104,6 @@ class JpaConfigurationStore(
                 json.writeValueAsString(settings.organization),
                 json.writeValueAsString(settings.transfer),
                 settings.onboardingCompleted,
-                settings.jellyfin.enabled,
-                settings.jellyfin.url,
-                settings.jellyfin.token,
                 created,
                 now,
                 (settingsRepository.findById(1).orElse(null)?.configurationRevision ?: -1) + 1,

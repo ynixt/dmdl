@@ -15,10 +15,9 @@ import com.ynixt.dmdl.domain.model.SpeedSample
 import com.ynixt.dmdl.domain.model.StreamBadgeRules
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import com.ynixt.dmdl.domain.repository.DownloadStore
-import com.ynixt.dmdl.domain.repository.NotificationStore
+import com.ynixt.dmdl.domain.repository.WebhookDeliveryStore
 import com.ynixt.dmdl.domain.service.DiscoveryService
 import com.ynixt.dmdl.domain.service.DownloadService
-import com.ynixt.dmdl.domain.service.NotificationService
 import org.springframework.context.event.ContextClosedEvent
 import org.springframework.context.event.EventListener
 import org.springframework.http.ResponseEntity
@@ -46,8 +45,7 @@ data class ControlInput(
 class DownloadsController(
     private val downloads: DownloadService,
     private val store: DownloadStore,
-    private val notifications: NotificationStore,
-    private val notificationService: NotificationService,
+    private val deliveries: WebhookDeliveryStore,
     private val discovery: DiscoveryService,
     private val configuration: ConfigurationStore,
 ) {
@@ -134,7 +132,10 @@ class DownloadsController(
     ) = downloads.submit(input.content, input.release, input.destinationId)
 
     @GetMapping("/downloads")
-    fun list() = downloads.history().map { DownloadStatusUpdate(it, notifications.find(it.id)) }
+    fun list(): List<DownloadStatusUpdate> {
+        val byRequest = deliveries.forVisibleRequests()
+        return downloads.history().map { DownloadStatusUpdate(it, byRequest[it.id].orEmpty()) }
+    }
 
     @DeleteMapping("/downloads/completed")
     fun removeFinished() = downloads.removeFinishedFromHistory()
@@ -147,7 +148,7 @@ class DownloadsController(
     @GetMapping("/downloads/{id}")
     fun get(
         @PathVariable id: UUID,
-    ) = DownloadStatusUpdate(requireNotNull(downloads.find(id)) { "Download not found" }, notifications.find(id))
+    ) = DownloadStatusUpdate(requireNotNull(downloads.find(id)) { "Download not found" }, deliveries.forRequest(id))
 
     @GetMapping("/downloads/{id}/history")
     fun history(
@@ -164,13 +165,6 @@ class DownloadsController(
         @PathVariable id: UUID,
         @RequestBody input: ControlInput,
     ) = downloads.control(id, input.generation, input.action)
-
-    @PostMapping("/downloads/{id}/notification/retry")
-    fun retryNotification(
-        @PathVariable id: UUID,
-    ) {
-        notificationService.retry(id)
-    }
 
     @GetMapping("/downloads/events", produces = ["text/event-stream"])
     fun events(): SseEmitter {

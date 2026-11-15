@@ -4,14 +4,12 @@ import com.ynixt.dmdl.application.config.StorageProperties
 import com.ynixt.dmdl.application.web.dto.StrictRequest
 import com.ynixt.dmdl.domain.gateway.AddonGateway
 import com.ynixt.dmdl.domain.gateway.FileFinalizer
-import com.ynixt.dmdl.domain.gateway.JellyfinGateway
 import com.ynixt.dmdl.domain.model.AddonConfiguration
 import com.ynixt.dmdl.domain.model.AddonFailure
 import com.ynixt.dmdl.domain.model.Aria2TransferOptions
 import com.ynixt.dmdl.domain.model.ConfigurationValidation
 import com.ynixt.dmdl.domain.model.ContentSnapshot
 import com.ynixt.dmdl.domain.model.FinalizationChecks
-import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.model.OrganizationRenderer
 import com.ynixt.dmdl.domain.model.OrganizationSettings
 import com.ynixt.dmdl.domain.model.OrganizationSnapshot
@@ -35,7 +33,6 @@ data class SettingsInput(
     val maxConcurrentDownloads: Int? = null,
     val organization: OrganizationSettings? = null,
     val transfer: Aria2TransferOptions? = null,
-    val jellyfin: JellyfinSettings? = null,
     val streamBadgeJson: String? = null,
     val finalization: FinalizationChecks? = null,
 ) : StrictRequest()
@@ -66,7 +63,6 @@ data class PreviewInput(
 class SettingsController(
     private val store: ConfigurationStore,
     private val addons: AddonGateway,
-    private val jellyfin: JellyfinGateway,
     private val storage: StorageProperties,
     private val finalizer: FileFinalizer,
     private val manifestBackfill: MetadataManifestBackfill,
@@ -96,12 +92,6 @@ class SettingsController(
             "configurationRevision" to settings.configurationRevision,
             "storageRoot" to root(),
             "streamBadgeJson" to settings.streamBadgeJson,
-            "jellyfin" to
-                mapOf(
-                    "enabled" to settings.jellyfin.enabled,
-                    "url" to settings.jellyfin.url,
-                    "token" to settings.jellyfin.token,
-                ),
         )
     }
 
@@ -112,8 +102,6 @@ class SettingsController(
         val old = requireNotNull(store.settings())
         val organization = input.organization?.copy(revision = old.organization.revision + 1) ?: old.organization
         val transfer = input.transfer ?: old.transfer
-        val notify = input.jellyfin?.let { it.copy(token = it.token?.takeIf(String::isNotBlank)) } ?: old.jellyfin
-        validateJellyfin(notify)
         val locale = input.locale ?: old.locale
         val updated =
             old.copy(
@@ -122,7 +110,6 @@ class SettingsController(
                     input.maxConcurrentDownloads ?: old.maxConcurrentDownloads,
                 organization = organization,
                 transfer = transfer,
-                jellyfin = notify,
                 streamBadgeJson = input.streamBadgeJson ?: old.streamBadgeJson,
                 finalization = input.finalization ?: old.finalization,
             )
@@ -168,15 +155,6 @@ class SettingsController(
         )
     }
 
-    @PostMapping("/settings/jellyfin/test")
-    fun testJellyfin(
-        @RequestBody input: JellyfinSettings,
-    ): Map<String, Boolean> {
-        validateJellyfin(input.copy(enabled = true))
-        jellyfin.test(input)
-        return mapOf("ok" to true)
-    }
-
     @GetMapping("/addons")
     fun listAddons() =
         mapOf(
@@ -193,6 +171,7 @@ class SettingsController(
             try {
                 val url = normalizeAddonManifestUrl(input.manifestUrl.orEmpty())
                 if (old != null && url == normalizeAddonManifestUrl(old.manifestUrl)) {
+                    validation.requireRole(old.manifest, true)
                     old.copy(manifestUrl = url, name = input.name?.trim()?.takeIf(String::isNotBlank) ?: old.manifest.name)
                 } else {
                     validation.addon(url, true, name = input.name ?: old?.name).let {
@@ -246,21 +225,6 @@ class SettingsController(
             "position" to addon.position,
             "manifestUrl" to addon.manifestUrl,
         )
-
-    private fun validateJellyfin(settings: JellyfinSettings) {
-        if (!settings.enabled) return
-        val errors = linkedMapOf<String, String>()
-        if (settings.url.isNullOrBlank()) errors["jellyfin.url"] = "KZ.JELLYFIN_URL_REQUIRED"
-        if (settings.token.isNullOrBlank()) errors["jellyfin.token"] = "KZ.JELLYFIN_TOKEN_REQUIRED"
-        if (errors.isEmpty()) {
-            try {
-                validation.jellyfin(settings)
-            } catch (_: IllegalArgumentException) {
-                errors["jellyfin.url"] = "KZ.JELLYFIN_URL_INVALID"
-            }
-        }
-        if (errors.isNotEmpty()) throw SettingsValidationFailure(errors)
-    }
 
     @ExceptionHandler(SettingsValidationFailure::class)
     fun invalidSettings(error: SettingsValidationFailure): ResponseEntity<*> =

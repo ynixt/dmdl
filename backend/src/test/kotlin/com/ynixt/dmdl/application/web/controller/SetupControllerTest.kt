@@ -5,11 +5,15 @@ import com.ynixt.dmdl.domain.model.AddonFailure
 import com.ynixt.dmdl.domain.model.AddonManifest
 import com.ynixt.dmdl.domain.model.AddonResource
 import com.ynixt.dmdl.domain.model.ApplicationSettings
+import com.ynixt.dmdl.domain.model.OrganizationSettings
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -29,7 +33,19 @@ class SetupControllerTest {
 
     init {
         every { store.settings() } returns ApplicationSettings("fixture", "hash")
-        controller = SetupController(store, addons, mockk(), mockk(), mockk())
+        controller =
+            SetupController(
+                store,
+                addons,
+                mockk(),
+                tools.jackson.databind.json.JsonMapper
+                    .builder()
+                    .addModule(
+                        tools.jackson.module.kotlin.KotlinModule
+                            .Builder()
+                            .build(),
+                    ).build(),
+            )
     }
 
     @Test
@@ -74,5 +90,66 @@ class SetupControllerTest {
         assertEquals("KZ.ADDON_NOT_FOUND", result.errors["search.0.manifestUrl"])
         assertFalse(result.toString().contains("secret"))
         verify(exactly = 0) { store.replaceSearchAddons(any()) }
+    }
+
+    private fun declaring(vararg names: String) =
+        AddonManifest("fixture", "Fixture", listOf("movie"), names.map { AddonResource(it, emptyList(), emptyList()) }, emptyList())
+
+    private val emptyOrganization =
+        OrganizationSettings(
+            categories =
+                OrganizationSettings.defaults().mapValues { (_, category) ->
+                    category.copy(destinations = emptyList(), defaultDestinationId = null)
+                },
+        )
+
+    private val completeDraft =
+        SetupDraft(
+            SettingsInput(organization = emptyOrganization),
+            metadataUrl = "https://metadata.example",
+            search =
+                listOf(
+                    SetupSearchInput(manifestUrl = "https://first.example"),
+                    SetupSearchInput(manifestUrl = "https://second.example", enabled = false),
+                ),
+        )
+
+    @Test
+    fun `metadata and search steps report missing resources beside their URL fields`() {
+        every { addons.manifest("https://metadata.example/manifest.json") } returns declaring("catalog")
+        every { addons.manifest("https://first.example/manifest.json") } returns declaring("stream")
+        every { addons.manifest("https://second.example/manifest.json") } returns declaring("catalog", "meta")
+        assertEquals(
+            mapOf("metadata.manifestUrl" to "KZ.ADDON_MISSING_META"),
+            controller.validate(ValidateSetupInput("metadata", completeDraft)).errors,
+        )
+        assertEquals(
+            mapOf("search.1.manifestUrl" to "KZ.ADDON_MISSING_STREAM"),
+            controller.validate(ValidateSetupInput("search", completeDraft)).errors,
+        )
+        verify(exactly = 0) { store.completeSetup(any()) }
+    }
+
+    @Test
+    fun `completion refetches manifests and blocks when one became incompatible after step validation`() {
+        every { store.completeSetup(any()) } just Runs
+        every { addons.manifest("https://first.example/manifest.json") } returns declaring("stream")
+        every { addons.manifest("https://second.example/manifest.json") } returns declaring("stream")
+        every { addons.manifest("https://metadata.example/manifest.json") } returnsMany
+            listOf(declaring("catalog", "meta"), declaring("catalog"), declaring("catalog", "meta"))
+        assertTrue(controller.validate(ValidateSetupInput("metadata", completeDraft)).valid)
+        val revision = store.settings()!!.configurationRevision
+
+        val failed = controller.complete(CompleteSetupInput(completeDraft, revision, UUID.randomUUID()))
+        assertEquals(400, failed.statusCode.value())
+        assertEquals(
+            mapOf("error" to "KZ.SETUP_INVALID", "errors" to mapOf("metadata.manifestUrl" to "KZ.ADDON_MISSING_META")),
+            failed.body,
+        )
+        verify(exactly = 0) { store.completeSetup(any()) }
+
+        assertEquals(200, controller.complete(CompleteSetupInput(completeDraft, revision, UUID.randomUUID())).statusCode.value())
+        verify(exactly = 1) { store.completeSetup(any()) }
+        verify(exactly = 3) { addons.manifest("https://metadata.example/manifest.json") }
     }
 }

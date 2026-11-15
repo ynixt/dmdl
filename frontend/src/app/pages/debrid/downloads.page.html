@@ -259,25 +259,12 @@
           {{ (history()[request.id] ? 'KZ.HIDE_EVENTS' : 'KZ.HISTORY') | translate }}
         </button>
       </div>
-      @if (item.notification; as notification) {
-        <div class="compact-stack notification">
-          <p>
-            {{ 'KZ.JELLYFIN_NOTIFICATION' | translate }}:
-            {{ 'KZ.NOTIFY_' + notification.state | translate }}
-          </p>
-          @if (notification.error) {
-            <p class="error">{{ notification.error }}</p>
-          }
-          @if (notification.state === 'FAILED' || notification.state === 'SKIPPED') {
-            <p-button
-              [label]="'KZ.RETRY_NOTIFICATION' | translate"
-              severity="secondary"
-              (onClick)="this.notification(request.id)"
-              [disabled]="busy()"
-            />
-          }
-        </div>
-      }
+      <app-download-webhooks
+        [requestId]="request.id"
+        [deliveries]="item.deliveries ?? []"
+        [webhooks]="webhooks()"
+        (changed)="reload()"
+      />
       @if (history()[request.id]; as events) {
         <ol class="event-list" [id]="'events-' + request.id">
           @for (event of events; track event.id) {

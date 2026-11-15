@@ -8,25 +8,29 @@ import com.ynixt.dmdl.domain.model.Aria2TransferState
 import com.ynixt.dmdl.domain.model.ContentIdentity
 import com.ynixt.dmdl.domain.model.ContentSnapshot
 import com.ynixt.dmdl.domain.model.DebridProvider
+import com.ynixt.dmdl.domain.model.DeliveryState
+import com.ynixt.dmdl.domain.model.DeliveryTrigger
 import com.ynixt.dmdl.domain.model.DiscoveryQuery
 import com.ynixt.dmdl.domain.model.DownloadControl
 import com.ynixt.dmdl.domain.model.DownloadFailure
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadState
 import com.ynixt.dmdl.domain.model.DownloadWakeUp
-import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.model.MediaCategory
-import com.ynixt.dmdl.domain.model.NotificationState
 import com.ynixt.dmdl.domain.model.OrganizationSettings
 import com.ynixt.dmdl.domain.model.SourceOutcome
 import com.ynixt.dmdl.domain.model.StorageDestination
 import com.ynixt.dmdl.domain.model.StreamBadgeRules
+import com.ynixt.dmdl.domain.model.Webhook
+import com.ynixt.dmdl.domain.model.WebhookActionResult
+import com.ynixt.dmdl.domain.model.WebhookEvent
+import com.ynixt.dmdl.domain.model.WebhookHeader
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import com.ynixt.dmdl.domain.repository.DownloadStore
-import com.ynixt.dmdl.domain.repository.NotificationStore
+import com.ynixt.dmdl.domain.repository.WebhookDeliveryStore
 import com.ynixt.dmdl.domain.service.DiscoveryService
 import com.ynixt.dmdl.domain.service.DownloadService
-import com.ynixt.dmdl.domain.service.NotificationService
+import com.ynixt.dmdl.domain.service.WebhookService
 import com.ynixt.dmdl.resource.cache.DiscoveryCache
 import com.ynixt.dmdl.support.IntegrationEnvironment
 import org.junit.jupiter.api.MethodOrderer
@@ -74,9 +78,9 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
 
     @Autowired lateinit var store: DownloadStore
 
-    @Autowired lateinit var notifications: NotificationStore
+    @Autowired lateinit var deliveries: WebhookDeliveryStore
 
-    @Autowired lateinit var notify: NotificationService
+    @Autowired lateinit var webhooks: WebhookService
 
     @Autowired lateinit var aria: Aria2Gateway
 
@@ -216,7 +220,7 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
                 "metadataName" to "My metadata",
                 "search" to listOf(mapOf("manifestUrl" to "${base()}/slow", "name" to "My search", "enabled" to true)),
             )
-        listOf("metadata", "search", "storage", "jellyfin").forEach { step ->
+        listOf("metadata", "search", "storage").forEach { step ->
             val validation = post("/api/setup/validate", mapOf("step" to step, "draft" to draft))
             assertEquals(200, validation.statusCode(), validation.body())
             assertTrue(json.readTree(validation.body())["valid"].asBoolean(), validation.body())
@@ -398,10 +402,40 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         assertFalse(settings.body().contains("integration-password"))
         assertTrue(json.readTree(request("/api/setup").body())["ready"].asBoolean())
         assertEquals(400, request("/api/setup/complete", emptyMap<String, String>()).statusCode())
+        val storedSearch = configuration.searchAddons()
+        val storedMetadata = configuration.metadata()
+
+        fun addonError(
+            path: String,
+            body: Any,
+        ): Map<String, String> {
+            val response = request(path, body, "PUT")
+            assertEquals(400, response.statusCode(), response.body())
+            assertFalse(response.body().contains("fixture-secret"))
+            return json.readTree(response.body())["errors"].properties().associate { it.key to it.value.asString() }
+        }
         assertEquals(
-            400,
-            request("/api/addons/search", listOf(mapOf("manifestUrl" to "${base()}/metadata/manifest.json")), "PUT").statusCode(),
+            mapOf("search.0.manifestUrl" to "KZ.ADDON_MISSING_STREAM"),
+            addonError("/api/addons/search", listOf(mapOf("manifestUrl" to "${base()}/metadata/manifest.json"))),
         )
+        assertEquals(
+            mapOf("search.${storedSearch.size}.manifestUrl" to "KZ.ADDON_INVALID_MANIFEST"),
+            addonError(
+                "/api/addons/search",
+                storedSearch.map { mapOf("id" to it.id, "manifestUrl" to it.manifestUrl, "enabled" to it.enabled) } +
+                    mapOf("manifestUrl" to "${base()}/malformed/manifest.json?token=fixture-secret", "enabled" to false),
+            ),
+        )
+        assertEquals(
+            mapOf("metadata.manifestUrl" to "KZ.ADDON_MISSING_META"),
+            addonError("/api/addons/metadata", mapOf("manifestUrl" to "${base()}/catalog-only/manifest.json")),
+        )
+        assertEquals(
+            mapOf("metadata.manifestUrl" to "KZ.ADDON_UNAVAILABLE"),
+            addonError("/api/addons/metadata", mapOf("manifestUrl" to "http://127.0.0.1:1/fixture-secret/manifest.json")),
+        )
+        assertEquals(storedSearch, configuration.searchAddons())
+        assertEquals(storedMetadata, configuration.metadata())
         val source = configuration.metadata()!!
         val search = discovery.search(DiscoveryQuery("movie", "custom-search", "Example"))
         assertEquals("opaque:movie", search.single().identity.contentId)
@@ -498,45 +532,34 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         assertEquals(200, preview.statusCode())
         assertTrue(json.readTree(preview.body())["path"].asString().endsWith(".mp4"))
         assertEquals(media.toString(), json.readTree(request("/api/settings").body())["storageRoot"].asString())
+        val jellyfinHook =
+            mapOf(
+                "name" to "Jellyfin",
+                "method" to "POST",
+                "url" to "${base()}/jellyfin/Library/Refresh",
+                "headers" to listOf(mapOf("name" to "Authorization", "value" to "MediaBrowser Token=\"fixture-token\"")),
+                "bodyMode" to "NONE",
+                "events" to listOf("download.completed"),
+            )
         val start = calls.size
-        assertEquals(
-            200,
-            request(
-                "/api/settings/jellyfin/test",
-                mapOf(
-                    "enabled" to false,
-                    "url" to "${base()}/jellyfin",
-                    "token" to "fixture-token",
-                ),
-            ).statusCode(),
-        )
-        assertEquals(listOf("GET /jellyfin/System/Info"), calls.drop(start).filter { it.contains("/jellyfin/") })
-        val legacyStart = calls.size
-        assertEquals(
-            200,
-            request(
-                "/api/settings/jellyfin/test",
-                mapOf(
-                    "enabled" to false,
-                    "url" to "${base()}/jellyfin-legacy",
-                    "token" to "fixture-token",
-                ),
-            ).statusCode(),
-        )
-        assertEquals(
-            listOf("GET /jellyfin-legacy/System/Info", "GET /jellyfin-legacy/System/Info"),
-            calls.drop(legacyStart).filter { it.contains("/jellyfin-legacy/") },
-        )
-        assertTrue(
-            request(
-                "/api/settings/jellyfin/test",
-                mapOf(
-                    "enabled" to false,
-                    "url" to "${base()}/jellyfin",
-                    "token" to "wrong-token",
-                ),
-            ).statusCode() !in 200..299,
-        )
+        val tested = request("/api/webhooks/test", mapOf("webhook" to jellyfinHook, "event" to "download.completed"))
+        assertEquals(200, tested.statusCode(), tested.body())
+        assertTrue(json.readTree(tested.body())["ok"].asBoolean(), tested.body())
+        assertEquals(listOf("POST /jellyfin/Library/Refresh"), calls.drop(start).filter { it.contains("/jellyfin/") })
+        val rejected =
+            json.readTree(
+                request(
+                    "/api/webhooks/test",
+                    mapOf(
+                        "webhook" to
+                            jellyfinHook +
+                            ("headers" to listOf(mapOf("name" to "Authorization", "value" to "MediaBrowser Token=\"wrong-token\""))),
+                    ),
+                ).body(),
+            )
+        assertFalse(rejected["ok"].asBoolean())
+        assertEquals(401, rejected["status"].asInt())
+        assertEquals("[]", request("/api/webhooks").body())
         val events =
             client.send(
                 HttpRequest.newBuilder(URI("$origin/api/downloads/events")).GET().build(),
@@ -697,15 +720,25 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
             assertTrue(Files.isRegularFile(Path.of(completed.execution.finalPath!!)))
             assertEquals(payload.size.toLong(), Files.size(Path.of(completed.execution.finalPath!!)))
             assertEquals(completed.execution.originalFileName, Path.of(completed.execution.finalPath!!).fileName.toString())
-            assertEquals(NotificationState.SKIPPED, notifications.find(completed.id)?.state)
+            assertTrue(deliveries.forRequest(completed.id).isEmpty())
         }
         assertFalse(calls.drop(initialCalls).any { it.endsWith("/Library/Refresh") || it.contains("/torbox/") })
     }
 
-    @Test fun `Jellyfin failure and explicit retry do not repeat transfer or adopt later naming settings`() {
+    @Test fun `webhook failure and explicit resend do not repeat transfer or adopt later naming settings`() {
         configure()
         val old = configuration.settings()!!
-        configuration.saveSettings(old.copy(jellyfin = JellyfinSettings(true, "${base()}/jellyfin", "fixture-token")))
+        val hook =
+            Webhook(
+                UUID.randomUUID(),
+                "Jellyfin",
+                "POST",
+                "${base()}/jellyfin/Library/Refresh",
+                listOf(WebhookHeader("Authorization", "MediaBrowser Token=\"fixture-token\"")),
+                events = setOf(WebhookEvent.REQUESTED, WebhookEvent.COMPLETED),
+                manual = true,
+            )
+        webhooks.replace(listOf(hook))
         refreshStatus = 401
         val content = content(MediaCategory.MOVIE)
         val submitted =
@@ -738,20 +771,23 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
                 .toString()
                 .startsWith("Changed"),
         )
-        notify.dispatchPending()
-        assertEquals(NotificationState.FAILED, notifications.find(completed.id)?.state)
+        webhooks.dispatchPending()
+        waitUntil { deliveries.forRequest(completed.id).none { it.state == DeliveryState.PENDING || it.inProgress } }
+        val automatic = deliveries.forRequest(completed.id)
+        assertEquals(listOf("download.requested", "download.completed"), automatic.map { it.event })
+        assertTrue(automatic.all { it.state == DeliveryState.FAILED && it.httpStatus == 401 })
+        val failed = automatic.last()
         val transfers = calls.count { it == "GET /file.mkv" }
-        val refreshes = calls.count { it.endsWith("/Library/Refresh") }
-        configuration.saveSettings(configuration.settings()!!.copy(jellyfin = JellyfinSettings()))
-        notify.retry(completed.id)
-        assertEquals(NotificationState.SKIPPED, notifications.find(completed.id)?.state)
-        assertEquals(refreshes, calls.count { it.endsWith("/Library/Refresh") })
-        configuration.saveSettings(
-            configuration.settings()!!.copy(jellyfin = JellyfinSettings(true, "${base()}/jellyfin", "fixture-token")),
-        )
         refreshStatus = 204
-        notify.retry(completed.id)
-        assertEquals(NotificationState.SENT, notifications.find(completed.id)?.state)
+        assertEquals(WebhookActionResult.OK, webhooks.resend(completed.id, failed.id))
+        waitUntil { deliveries.forRequest(completed.id).single { it.id == failed.id }.state == DeliveryState.SENT }
+        val resent = deliveries.forRequest(completed.id).single { it.id == failed.id }
+        assertEquals("download.completed", resent.event)
+        assertEquals(2, resent.attempts)
+        assertEquals(WebhookActionResult.INELIGIBLE, webhooks.resend(completed.id, failed.id))
+        assertEquals(WebhookActionResult.OK, webhooks.dispatch(completed.id, listOf(hook.id)))
+        waitUntil { deliveries.forRequest(completed.id).any { it.trigger == DeliveryTrigger.MANUAL && it.state == DeliveryState.SENT } }
+        assertEquals(3, deliveries.forRequest(completed.id).size)
         assertEquals(DownloadState.COMPLETED, store.find(completed.id)?.state)
         assertEquals(transfers, calls.count { it == "GET /file.mkv" })
         val later = content(MediaCategory.MOVIE)
@@ -775,7 +811,7 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
                 .startsWith("Changed"),
         )
         assertEquals(2, renamed.organization.revision)
-        configuration.saveSettings(configuration.settings()!!.copy(jellyfin = JellyfinSettings()))
+        webhooks.replace(emptyList())
     }
 
     private fun destination(category: MediaCategory): UUID =
@@ -981,9 +1017,9 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
         configuration.saveSettings(
             configuration.settings()!!.copy(
                 organization = OrganizationSettings(categories = OrganizationSettings.defaults(media.toString())),
-                jellyfin = JellyfinSettings(),
             ),
         )
+        webhooks.replace(emptyList())
     }
 
     private fun content(category: MediaCategory): ContentSnapshot {

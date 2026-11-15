@@ -107,6 +107,57 @@ class ConfigurationValidationTest {
         assertEquals("AIOStreams", addon.manifest.name)
         assertEquals("https://addon.example/config/manifest.json", addon.manifestUrl)
         assertEquals("AIOStreams", validation.addon(addon.manifestUrl, false, name = " ").name)
-        assertEquals("KZ.ADDON_METADATA_INCOMPATIBLE", assertFailsWith<AddonFailure> { validation.addon(addon.manifestUrl, true) }.code)
+        assertEquals("KZ.ADDON_MISSING_CATALOG_META", assertFailsWith<AddonFailure> { validation.addon(addon.manifestUrl, true) }.code)
+    }
+
+    private fun declaring(
+        vararg names: String,
+        catalogs: List<AddonCatalog> = emptyList(),
+    ) = manifest.copy(resources = names.map { AddonResource(it, emptyList(), emptyList()) }, catalogs = catalogs)
+
+    private fun roleCode(
+        manifest: AddonManifest,
+        metadata: Boolean,
+    ): String? = runCatching { validation.requireRole(manifest, metadata) }.exceptionOrNull()?.let { (it as AddonFailure).code }
+
+    @Test
+    fun `metadata role requires catalog and meta and reports each missing combination`() {
+        assertEquals(null, roleCode(declaring("catalog", "meta"), true))
+        assertEquals(null, roleCode(declaring("catalog", "meta", "stream", "subtitles"), true))
+        assertEquals("KZ.ADDON_MISSING_CATALOG", roleCode(declaring("meta"), true))
+        assertEquals("KZ.ADDON_MISSING_META", roleCode(declaring("catalog"), true))
+        assertEquals("KZ.ADDON_MISSING_CATALOG_META", roleCode(declaring(), true))
+        assertEquals("KZ.ADDON_MISSING_CATALOG_META", roleCode(declaring("stream"), true))
+    }
+
+    @Test
+    fun `search role requires stream regardless of other resources or declared types`() {
+        assertEquals(null, roleCode(declaring("stream"), false))
+        assertEquals(null, roleCode(manifest.copy(resources = listOf(AddonResource("stream", listOf("tv"), emptyList()))), false))
+        assertEquals(null, roleCode(declaring("catalog", "meta", "stream"), false))
+        assertEquals("KZ.ADDON_MISSING_STREAM", roleCode(declaring("catalog", "meta"), false))
+        assertEquals("KZ.ADDON_MISSING_STREAM", roleCode(declaring(), false))
+    }
+
+    @Test
+    fun `registration eligibility depends only on declared resources, not catalog extras`() {
+        val url = "https://metadata.example/manifest.json"
+        val genreSkip =
+            AddonCatalog(
+                "top",
+                "movie",
+                "Top",
+                false,
+                listOf(AddonCatalogExtra("genre", options = listOf("Drama")), AddonCatalogExtra("skip", options = emptyList())),
+            )
+        listOf(declaring("catalog", "meta", catalogs = listOf(genreSkip)), declaring("catalog", "meta")).forEach { candidate ->
+            every { gateway.manifest(url) } returns candidate
+            assertEquals(candidate, validation.addon(url, true).manifest)
+        }
+        every { gateway.manifest(url) } returns declaring("stream")
+        val search = validation.addon(url, false)
+        assertEquals(listOf("stream"), search.manifest.resources.map { it.name })
+        every { gateway.manifest(url) } returns declaring("meta", catalogs = listOf(genreSkip.copy(searchable = true)))
+        assertEquals("KZ.ADDON_MISSING_CATALOG", assertFailsWith<AddonFailure> { validation.addon(url, true) }.code)
     }
 }

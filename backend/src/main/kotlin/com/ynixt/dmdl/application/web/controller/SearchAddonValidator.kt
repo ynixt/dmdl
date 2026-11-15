@@ -35,6 +35,7 @@ class SearchAddonValidator(
                 val url = normalizeAddonManifestUrl(source.manifestUrl)
                 val configuration =
                     if (old != null && url == normalizeAddonManifestUrl(old.manifestUrl)) {
+                        validation.requireRole(old.manifest, false)
                         old.copy(
                             manifestUrl = url,
                             name = source.name?.trim()?.takeIf(String::isNotBlank) ?: old.manifest.name,

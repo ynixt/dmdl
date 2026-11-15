@@ -10,9 +10,10 @@ import {
   Settings,
   Transfer,
   FinalizationChecks,
+  Webhook,
 } from '../../services/debrid-api.service';
 
-export type SettingsTab = 'metadata' | 'search' | 'storage' | 'jellyfin';
+export type SettingsTab = 'metadata' | 'search' | 'storage' | 'webhooks';
 export interface MetadataDraft {
   locale: string;
   addon: { name: string; manifestUrl: string };
@@ -32,7 +33,9 @@ export interface StorageDraft {
   finalization: FinalizationChecks;
   maxConcurrentDownloads: number;
 }
-export type JellyfinDraft = Settings['jellyfin'];
+export interface WebhooksDraft {
+  items: Webhook[];
+}
 export const equal = (left: unknown, right: unknown): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
 const clone = <T>(value: T): T => structuredClone(value);
@@ -106,20 +109,21 @@ export class SettingsDraftStore {
     },
     finalization: { ...DEFAULT_FINALIZATION },
   });
-  readonly jellyfin = new SettingsSlice<JellyfinDraft>({ enabled: false, url: '', token: '' });
+  readonly webhooks = new SettingsSlice<WebhooksDraft>({ items: [] });
   readonly anyDirty = computed(
     () =>
-      this.metadata.dirty() || this.search.dirty() || this.storage.dirty() || this.jellyfin.dirty(),
+      this.metadata.dirty() || this.search.dirty() || this.storage.dirty() || this.webhooks.dirty(),
   );
 
   async load(): Promise<void> {
     this.loading.set(true);
     this.loadError.set('');
     try {
-      const [settings, addons, badges] = await Promise.all([
+      const [settings, addons, badges, webhooks] = await Promise.all([
         this.api.get<Settings>('/settings'),
         this.api.get<Addons>('/addons'),
         this.api.get<{ streamBadgeJson: string }>('/settings/stream-badges/defaults'),
+        this.api.get<Webhook[]>('/webhooks'),
       ]);
       this.defaultBadges.set(this.pretty(badges.streamBadgeJson));
       this.metadata.initialize({
@@ -136,11 +140,7 @@ export class SettingsDraftStore {
         finalization: settings.finalization ?? { ...DEFAULT_FINALIZATION },
         maxConcurrentDownloads: settings.maxConcurrentDownloads,
       });
-      this.jellyfin.initialize({
-        enabled: settings.jellyfin.enabled,
-        url: settings.jellyfin.url ?? '',
-        token: settings.jellyfin.token ?? '',
-      });
+      this.webhooks.initialize({ items: webhooks.map((webhook) => this.webhookValue(webhook)) });
       this.loaded.set(true);
     } catch (error) {
       this.loadError.set(this.response(error).error ?? 'KZ.REQUEST_FAILED');
@@ -207,16 +207,11 @@ export class SettingsDraftStore {
     });
   }
 
-  saveJellyfin(): Promise<void> {
-    return this.run(this.jellyfin, async () => {
-      const settings = await this.api.put<Settings>('/settings', {
-        jellyfin: clone(this.jellyfin.draft()),
-      });
-      this.jellyfin.commit({
-        enabled: settings.jellyfin.enabled,
-        url: settings.jellyfin.url ?? '',
-        token: settings.jellyfin.token ?? '',
-      });
+  /** Saves the whole webhook list at once; the server rejects it entirely when any webhook is invalid. */
+  saveWebhooks(): Promise<void> {
+    return this.run(this.webhooks, async () => {
+      const saved = await this.api.put<Webhook[]>('/webhooks', clone(this.webhooks.draft().items));
+      this.webhooks.commit({ items: saved.map((webhook) => this.webhookValue(webhook)) });
     });
   }
 
@@ -247,6 +242,20 @@ export class SettingsDraftStore {
   }
   private pretty(value: string): string {
     return JSON.stringify(JSON.parse(value), null, 2);
+  }
+  private webhookValue(webhook: Webhook): Webhook {
+    return {
+      id: webhook.id,
+      name: webhook.name,
+      method: webhook.method,
+      url: webhook.url,
+      headers: webhook.headers.map(({ name, value }) => ({ name, value })),
+      bodyMode: webhook.bodyMode,
+      body: webhook.body ?? '',
+      events: [...webhook.events],
+      manual: webhook.manual,
+      enabled: webhook.enabled,
+    };
   }
   private metadataValue(addon?: Addon): MetadataDraft['addon'] {
     return { name: addon?.name ?? '', manifestUrl: addon?.manifestUrl ?? '' };

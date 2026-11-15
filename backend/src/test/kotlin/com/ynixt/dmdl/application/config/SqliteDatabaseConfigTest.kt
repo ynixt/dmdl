@@ -15,7 +15,6 @@ import com.ynixt.dmdl.domain.model.ReleaseSnapshot
 import com.ynixt.dmdl.resource.persistence.entity.ApplicationSettingsEntity
 import com.ynixt.dmdl.resource.persistence.entity.DownloadEventEntity
 import com.ynixt.dmdl.resource.persistence.entity.DownloadRequestEntity
-import com.ynixt.dmdl.resource.persistence.entity.JellyfinNotificationEntity
 import com.ynixt.dmdl.resource.persistence.entity.MetadataAddonEntity
 import com.ynixt.dmdl.resource.persistence.entity.SearchAddonEntity
 import com.ynixt.dmdl.resource.persistence.mapper.DownloadRequestMapper
@@ -57,7 +56,7 @@ class SqliteDatabaseConfigTest {
                     .dataSource(source)
                     .locations("classpath:db/sqlite")
                     .load()
-            assertEquals(8, flyway.migrate().migrationsExecuted)
+            assertEquals(9, flyway.migrate().migrationsExecuted)
             source.connection.use { first ->
                 source.connection.use { second ->
                     listOf(first, second).forEach { connection ->
@@ -86,7 +85,6 @@ class SqliteDatabaseConfigTest {
                 listOf(
                     DownloadRequestEntity::class.java,
                     DownloadEventEntity::class.java,
-                    JellyfinNotificationEntity::class.java,
                     MetadataAddonEntity::class.java,
                     SearchAddonEntity::class.java,
                     ApplicationSettingsEntity::class.java,
@@ -94,7 +92,7 @@ class SqliteDatabaseConfigTest {
                 metadata.buildMetadata().buildSessionFactory().use { factory: SessionFactory ->
                     factory.openSession().use { session ->
                         assertEquals(
-                            9L,
+                            10L,
                             session
                                 .createNativeQuery(
                                     "SELECT count(*) FROM flyway_schema_history WHERE success = 1",
@@ -145,7 +143,10 @@ class SqliteDatabaseConfigTest {
             source.connection.use { connection ->
                 connection.createStatement().use { sql ->
                     assertFailsWith<java.sql.SQLException> {
-                        sql.executeUpdate("INSERT INTO jellyfin_notification (request_id, state) VALUES ('missing', 'PENDING')")
+                        sql.executeUpdate(
+                            """INSERT INTO webhook_delivery (id, request_id, webhook_name, trigger_type, state, created_at)
+                            VALUES ('d', 'missing', 'Hook', 'MANUAL', 'PENDING', 'now')""",
+                        )
                     }
                     sql.executeQuery("SELECT count(*) FROM sqlite_schema WHERE name = 'debrid_config'").use { rows ->
                         assertTrue(rows.next())

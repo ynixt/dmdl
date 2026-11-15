@@ -85,5 +85,5 @@ data class DownloadWakeUp(
 
 data class DownloadStatusUpdate(
     val request: DownloadRequest,
-    val notification: JellyfinNotification?,
+    val deliveries: List<WebhookDelivery> = emptyList(),
 )

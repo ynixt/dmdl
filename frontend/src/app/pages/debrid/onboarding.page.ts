@@ -5,7 +5,6 @@ import { TranslatePipe } from '@ngx-translate/core';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { firstValueFrom } from 'rxjs';
 import { SecretInputComponent } from '../../components/secret-input/secret-input.component';
 import { AuthService } from '../../core/auth/auth.service';
@@ -31,7 +30,6 @@ import { StreamBadgeFieldsComponent } from './stream-badge-fields.component';
     ButtonModule,
     InputTextModule,
     SelectModule,
-    ToggleSwitchModule,
     StorageFieldsComponent,
     TransferFieldsComponent,
     StreamBadgeFieldsComponent,
@@ -51,10 +49,8 @@ export class OnboardingPage implements OnInit {
   readonly errors = signal<Record<string, string>>({});
   readonly step = signal(0);
   readonly previews = signal<Record<string, string>>({});
-  readonly testingConnection = signal<'JELLYFIN' | null>(null);
-  readonly connectionTests = signal<Record<string, { ok: boolean; message: string }>>({});
   private previewRevision = 0;
-  readonly steps = ['metadata', 'search', 'storage', 'jellyfin'];
+  readonly steps = ['metadata', 'search', 'storage'];
   readonly languages = ['pt-BR', 'en-US'];
   searchRows: SetupSearch[] = [this.emptySource()];
   draft: OnboardingDraft | null = null;
@@ -85,67 +81,12 @@ export class OnboardingPage implements OnInit {
           maxConcurrentDownloads: settings.maxConcurrentDownloads,
           organization: settings.organization,
           transfer: settings.transfer,
-          jellyfin: {
-            enabled: settings.jellyfin.enabled,
-            url: settings.jellyfin.url ?? '',
-            token: settings.jellyfin.token ?? '',
-          },
         },
         metadataUrl: '',
         metadataName: '',
         search: [],
       };
     });
-  }
-
-  clearConnectionTest(key: 'JELLYFIN'): void {
-    this.connectionTests.update((current) => {
-      const updated = { ...current };
-      delete updated[key];
-      return updated;
-    });
-  }
-
-  async testJellyfin(): Promise<void> {
-    const settings = this.draft?.settings.jellyfin;
-    if (!settings?.enabled || !settings.url?.trim() || !settings.token?.trim()) return;
-    await this.testConnection('JELLYFIN', '/settings/jellyfin/test', {
-      enabled: true,
-      url: settings.url.trim(),
-      token: settings.token.trim(),
-    });
-  }
-
-  private async testConnection(key: 'JELLYFIN', path: string, body: unknown): Promise<void> {
-    if (this.busy()) return;
-    this.busy.set(true);
-    this.testingConnection.set(key);
-    this.clearConnectionTest(key);
-    try {
-      const result = await this.api.post<{ ok: boolean }>(path, body);
-      if (!result.ok)
-        throw {
-          error: {
-            error: 'KZ.REQUEST_FAILED',
-          },
-        };
-      this.connectionTests.update((current) => ({
-        ...current,
-        [key]: { ok: true, message: 'KZ.CONNECTION_OK' },
-      }));
-    } catch (error) {
-      this.connectionTests.update((current) => ({
-        ...current,
-        [key]: {
-          ok: false,
-          message: (error as { error?: { error?: string } })?.error?.error ?? 'KZ.REQUEST_FAILED',
-        },
-      }));
-    } finally {
-      this.testingConnection.set(null);
-      this.busy.set(false);
-      this.changeDetector.markForCheck();
-    }
   }
 
   async changeLanguage(locale: string): Promise<void> {
@@ -266,7 +207,7 @@ export class OnboardingPage implements OnInit {
     if (field.startsWith('storage.')) return 'KZ.CATEGORY_' + field.split('.')[1];
     if (field.startsWith('metadata')) return 'KZ.METADATA_ADDON';
     if (field.startsWith('search')) return 'KZ.SEARCH_ADDONS';
-    return field === 'jellyfin' ? 'KZ.JELLYFIN_OPTIONAL' : 'KZ.ORGANIZATION';
+    return 'KZ.ORGANIZATION';
   }
 
   private async run(action: () => Promise<void>): Promise<void> {

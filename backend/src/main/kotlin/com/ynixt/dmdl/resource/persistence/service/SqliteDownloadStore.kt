@@ -4,6 +4,7 @@ import com.ynixt.dmdl.domain.model.DownloadEvent
 import com.ynixt.dmdl.domain.model.DownloadFailure
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadState
+import com.ynixt.dmdl.domain.model.WebhookEvent
 import com.ynixt.dmdl.domain.repository.DownloadStore
 import com.ynixt.dmdl.resource.persistence.entity.DownloadRequestEntity
 import com.ynixt.dmdl.resource.persistence.mapper.DownloadRequestMapper
@@ -55,7 +56,7 @@ class SqliteDownloadStore(
             ) {
                 throw DownloadFailure("Download request could not be inserted")
             }
-            event(request.id, request.execution.generation, request.state)
+            event(request.id, request.execution.generation, request.state, created = true)
         }
     }
 
@@ -71,12 +72,21 @@ class SqliteDownloadStore(
 
     override fun removeFinishedFromHistory(id: UUID?): Int =
         writes.run {
+            val removed =
+                jdbc.update(
+                    """UPDATE download_request SET history_removed = 1
+                    WHERE state IN ('COMPLETED', 'CANCELLED') AND history_removed = 0 AND (? IS NULL OR id = ?)""",
+                    id?.toString(),
+                    id?.toString(),
+                )
+            // Removing a download from history removes its webhook deliveries too.
             jdbc.update(
-                """UPDATE download_request SET history_removed = 1
-                WHERE state IN ('COMPLETED', 'CANCELLED') AND history_removed = 0 AND (? IS NULL OR id = ?)""",
+                """DELETE FROM webhook_delivery WHERE request_id IN
+                (SELECT id FROM download_request WHERE history_removed = 1 AND (? IS NULL OR id = ?))""",
                 id?.toString(),
                 id?.toString(),
             )
+            removed
         }
 
     override fun events(id: UUID): List<DownloadEvent> =
@@ -165,19 +175,10 @@ class SqliteDownloadStore(
                     row.owner,
                 ) == 1
             if (updated) {
-                event(request.id, request.execution.generation, request.state)
                 if (request.state == DownloadState.COMPLETED) {
                     require(request.execution.placement == com.ynixt.dmdl.domain.model.PlacementState.PLACED)
-                    jdbc.update(
-                        """
-                        INSERT INTO jellyfin_notification(request_id, state)
-                        VALUES (?, CASE WHEN (SELECT jellyfin_enabled FROM application_settings WHERE id = 1) = 1
-                                  THEN 'PENDING' ELSE 'SKIPPED' END)
-                        ON CONFLICT(request_id) DO NOTHING
-                        """.trimIndent(),
-                        request.id.toString(),
-                    )
                 }
+                event(request.id, request.execution.generation, request.state)
             }
             updated
         } == true
@@ -249,27 +250,62 @@ class SqliteDownloadStore(
             generation,
         ) == 1
 
+    /**
+     * Records a transition unless it repeats the latest event of the same generation, and in the same transaction queues
+     * one automatic delivery for every enabled webhook subscribed to the webhook event that transition emits.
+     */
     private fun event(
         id: UUID,
         generation: Long,
         state: DownloadState,
+        created: Boolean = false,
     ) {
-        jdbc.update(
-            """
-            INSERT INTO download_event(id, request_id, generation, state, occurred_at)
-            SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS
-            (SELECT 1 FROM download_event WHERE rowid = (SELECT max(rowid) FROM download_event WHERE request_id = ?)
-             AND state = ? AND generation = ?)
-            """.trimIndent(),
-            UUID.randomUUID().toString(),
-            id.toString(),
-            generation,
-            state.name,
-            Instant.now().toString(),
-            id.toString(),
-            state.name,
-            generation,
-        )
+        val eventId = UUID.randomUUID().toString()
+        val now = Instant.now().toString()
+        val recorded =
+            jdbc.update(
+                """
+                INSERT INTO download_event(id, request_id, generation, state, occurred_at)
+                SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS
+                (SELECT 1 FROM download_event WHERE rowid = (SELECT max(rowid) FROM download_event WHERE request_id = ?)
+                 AND state = ? AND generation = ?)
+                """.trimIndent(),
+                eventId,
+                id.toString(),
+                generation,
+                state.name,
+                now,
+                id.toString(),
+                state.name,
+                generation,
+            ) == 1
+        val webhookEvent = WebhookEvent.forTransition(state, created) ?: return
+        if (!recorded) return
+        jdbc
+            .query(
+                """
+                SELECT id, name FROM webhook WHERE enabled = 1
+                AND EXISTS (SELECT 1 FROM json_each(webhook.events_json) WHERE json_each.value = ?)
+                ORDER BY display_order, name
+                """.trimIndent(),
+                { row, _ -> row.getString(1) to row.getString(2) },
+                webhookEvent.key,
+            ).forEach { (webhookId, name) ->
+                jdbc.update(
+                    """
+                    INSERT INTO webhook_delivery (id, request_id, webhook_id, webhook_name, trigger_type, event, download_event_id,
+                                                  state, created_at)
+                    VALUES (?, ?, ?, ?, 'AUTOMATIC', ?, ?, 'PENDING', ?)
+                    """.trimIndent(),
+                    UUID.randomUUID().toString(),
+                    id.toString(),
+                    webhookId,
+                    name,
+                    webhookEvent.key,
+                    eventId,
+                    now,
+                )
+            }
     }
 
     private fun read(row: ResultSet): DownloadRequest =

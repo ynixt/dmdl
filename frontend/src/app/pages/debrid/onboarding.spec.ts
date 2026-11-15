@@ -7,6 +7,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AppLanguage, I18nService } from '../../core/i18n/i18n.service';
 import { DebridApi, Settings } from '../../services/debrid-api.service';
 import { OnboardingPage } from './onboarding.page';
+import en from '../../../../public/i18n/en-US.json';
 
 describe('Onboarding wizard', () => {
   const settings = (): Settings => ({
@@ -45,7 +46,6 @@ describe('Onboarding wizard', () => {
       fileAllocation: 'PREALLOC',
       ipv6Enabled: true,
     },
-    jellyfin: { enabled: false, token: '' },
   });
   const api = { get: vi.fn(), post: vi.fn() };
   const auth = { refreshSession: vi.fn(async () => true) };
@@ -98,8 +98,9 @@ describe('Onboarding wizard', () => {
       fixture.nativeElement.querySelector('#setup-transfer-lowest-speed-enabled'),
     ).not.toBeNull();
     expect(fixture.nativeElement.querySelector('#setup-transfer-lowest-speed')).toBeNull();
-    await page.advance();
-    expect(page.step()).toBe(3);
+    expect(fixture.nativeElement.querySelector('.wizard-footer').textContent).toContain(
+      'KZ.SAVE_COMPLETE_SETUP',
+    );
     expect(
       api.post.mock.calls.every(
         ([path]) => path === '/setup/validate' || path === '/settings/organization/preview',
@@ -111,31 +112,7 @@ describe('Onboarding wizard', () => {
     expect(fixture.nativeElement.querySelectorAll('.wizard-footer button')).toHaveLength(1);
     expect(fixture.nativeElement.querySelector('#setup-token-TORBOX')).toBeNull();
     expect(page.payload().settings.organization.categories.MOVIE.destinations).toHaveLength(1);
-    expect(page.payload().settings.jellyfin.enabled).toBe(false);
-  });
-
-  it('pre-fills the returned Jellyfin token', async () => {
-    api.get.mockImplementation(async (path: string) =>
-      path === '/settings'
-        ? {
-            ...settings(),
-            jellyfin: { enabled: true, url: 'https://jellyfin', token: 'stored-token' },
-          }
-        : { streamBadgeJson: '{"imports":[]}' },
-    );
-    const fixture = TestBed.createComponent(OnboardingPage);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    await vi.waitFor(() =>
-      expect(fixture.componentInstance.draft?.settings.jellyfin.token).toBe('stored-token'),
-    );
-    fixture.componentInstance.step.set(3);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('#setup-jellyfin-token').value).toBe('stored-token');
+    expect(page.payload().settings).not.toHaveProperty('jellyfin');
   });
 
   it('edits and restores badge JSON in draft and submits it only at completion', async () => {
@@ -181,6 +158,48 @@ describe('Onboarding wizard', () => {
     expect(page.step()).toBe(0);
     expect(page.draft!.metadataUrl).toBe('https://invalid/manifest.json');
     expect(page.errors()['metadata.manifestUrl']).toBeTruthy();
+  });
+
+  it('shows translated missing-resource causes beside the failing URL fields and keeps the draft', async () => {
+    const translate = TestBed.inject(TranslateService);
+    translate.setTranslation('en-US', en);
+    await firstValueFrom(translate.use('en-US'));
+    const fixture = TestBed.createComponent(OnboardingPage);
+    fixture.detectChanges();
+    const page = fixture.componentInstance;
+    await vi.waitFor(() => expect(page.draft).not.toBeNull());
+    page.step.set(0);
+    page.draft!.metadataUrl = 'https://catalog-only/manifest.json';
+    api.post.mockResolvedValueOnce({
+      valid: false,
+      errors: { 'metadata.manifestUrl': 'KZ.ADDON_MISSING_META' },
+    });
+    await page.advance();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#setup-metadata-error').textContent).toContain(
+      en.KZ.ADDON_MISSING_META,
+    );
+    expect(page.step()).toBe(0);
+    expect(page.draft!.metadataUrl).toBe('https://catalog-only/manifest.json');
+
+    page.step.set(1);
+    page.searchRows = [
+      { manifestUrl: 'https://streams/manifest.json', enabled: true, name: '' },
+      { manifestUrl: 'https://no-stream/manifest.json', enabled: false, name: '' },
+    ];
+    fixture.detectChanges();
+    api.post.mockResolvedValueOnce({
+      valid: false,
+      errors: { 'search.1.manifestUrl': 'KZ.ADDON_MISSING_STREAM' },
+    });
+    await page.advance();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#setup-source-error-1').textContent).toContain(
+      en.KZ.ADDON_MISSING_STREAM,
+    );
+    expect(fixture.nativeElement.querySelector('#setup-source-error-0')).toBeNull();
+    expect(page.step()).toBe(1);
+    expect(page.searchRows[1].manifestUrl).toBe('https://no-stream/manifest.json');
   });
 
   it('adds and removes named search addons explicitly without intermediate saves', async () => {
@@ -265,13 +284,13 @@ describe('Onboarding wizard', () => {
     expect(page.step()).toBe(0);
     expect(api.post).not.toHaveBeenCalled();
 
-    page.step.set(3);
+    page.step.set(2);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#setup-language')).toBeNull();
     expect(fixture.nativeElement.querySelector('.wizard-footer').textContent).toContain(
       'KZ.SAVE_COMPLETE_SETUP',
     );
-    expect(page.steps).toEqual(['metadata', 'search', 'storage', 'jellyfin']);
+    expect(page.steps).toEqual(['metadata', 'search', 'storage']);
     expect(page.draft!.settings.locale).toBe('en-US');
     expect(api.post).not.toHaveBeenCalled();
   });
@@ -279,7 +298,7 @@ describe('Onboarding wizard', () => {
   it('retains failed final submissions and retries with the same identifier while preventing duplicate activation', async () => {
     const page = TestBed.createComponent(OnboardingPage).componentInstance;
     await page.ngOnInit();
-    page.step.set(3);
+    page.step.set(2);
     api.post.mockRejectedValueOnce({
       error: { error: 'KZ.SETUP_INVALID', errors: { storage: 'KZ.INVALID_CONFIGURATION' } },
     });
@@ -293,55 +312,5 @@ describe('Onboarding wizard', () => {
     expect(api.post.mock.calls[1][1].submissionId).toBe(first.submissionId);
     expect(auth.refreshSession).toHaveBeenCalledTimes(1);
     expect(router.navigate).toHaveBeenCalledWith(['/discovery']);
-  });
-
-  it('tests draft Jellyfin URL and token from the optional step and clears results after URL or key changes', async () => {
-    const fixture = TestBed.createComponent(OnboardingPage);
-    fixture.detectChanges();
-    const page = fixture.componentInstance;
-    await vi.waitFor(() => expect(page.busy()).toBe(false));
-    page.step.set(3);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('#setup-jellyfin-token')).toBeNull();
-    await page.testJellyfin();
-    expect(api.post).not.toHaveBeenCalled();
-    fixture.debugElement.query(By.css('p-toggleswitch')).triggerEventHandler('ngModelChange', true);
-    fixture.detectChanges();
-    const button = fixture.debugElement.query(By.css('p-button[icon="pi pi-check-circle"]'));
-    expect(button.componentInstance.disabled).toBe(true);
-    const url = fixture.nativeElement.querySelector('#setup-jellyfin-url') as HTMLInputElement;
-    const token = fixture.nativeElement.querySelector('#setup-jellyfin-token') as HTMLInputElement;
-    url.value = ' http://jellyfin.fixture:8096 ';
-    url.dispatchEvent(new Event('input'));
-    token.value = ' draft-jellyfin ';
-    token.dispatchEvent(new Event('input'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(button.componentInstance.disabled).toBe(false);
-    api.post.mockResolvedValueOnce({ ok: true });
-    button.triggerEventHandler('onClick');
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/settings/jellyfin/test', {
-      enabled: true,
-      url: 'http://jellyfin.fixture:8096',
-      token: 'draft-jellyfin',
-    });
-    expect(
-      fixture.nativeElement.querySelector('#setup-test-result-JELLYFIN').textContent,
-    ).toContain('KZ.CONNECTION_OK');
-    expect(page.step()).toBe(3);
-    url.value = 'http://other-jellyfin.fixture';
-    url.dispatchEvent(new Event('input'));
-    await fixture.whenStable();
-    expect(page.connectionTests()['JELLYFIN']).toBeUndefined();
-    api.post.mockResolvedValueOnce({ ok: true });
-    await page.testJellyfin();
-    token.value = 'changed-key';
-    token.dispatchEvent(new Event('input'));
-    await fixture.whenStable();
-    expect(page.connectionTests()['JELLYFIN']).toBeUndefined();
-    expect(page.draft!.settings.jellyfin.token).toBe('changed-key');
-    expect(auth.refreshSession).not.toHaveBeenCalled();
   });
 });

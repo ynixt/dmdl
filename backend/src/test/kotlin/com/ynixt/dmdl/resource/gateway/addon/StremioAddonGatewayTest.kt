@@ -279,6 +279,51 @@ class StremioAddonGatewayTest {
     }
 
     @Test
+    fun `parses string, named-object and mixed resources and rejects malformed shapes as invalid manifests`() {
+        val bodies =
+            mapOf(
+                "strings" to """{"id":"a","name":"A","types":["movie"],"resources":["catalog","meta"],"catalogs":[]}""",
+                "objects" to """{"id":"a","name":"A","resources":[{"name":"stream","types":["series"],"idPrefixes":["tt"]}]}""",
+                "mixed" to """{"id":"a","name":"A","types":["movie"],"resources":["catalog",{"name":"meta"}]}""",
+                "resources-object" to """{"id":"a","name":"A","resources":{"name":"stream"}}""",
+                "resources-string" to """{"id":"a","name":"A","resources":"stream"}""",
+                "nameless" to """{"id":"a","name":"A","resources":[{"types":["movie"]}]}""",
+                "numeric-name" to """{"id":"a","name":"A","resources":[{"name":7}]}""",
+                "blank-name" to """{"id":"a","name":"A","resources":[""]}""",
+                "number-entry" to """{"id":"a","name":"A","resources":[3]}""",
+                "catalogs-object" to """{"id":"a","name":"A","resources":["catalog","meta"],"catalogs":{"id":"x"}}""",
+                "types-string" to """{"id":"a","name":"A","types":"movie","resources":["stream"]}""",
+                "root-array" to """[{"id":"a","name":"A"}]""",
+                "missing-id" to """{"name":"A","resources":["stream"]}""",
+            )
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/") { exchange ->
+            val body = bodies.getValue(exchange.requestURI.path.split('/')[1]).toByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        try {
+            val gateway = StremioAddonGateway(JsonMapper.builder().build())
+
+            fun manifest(key: String) = gateway.manifest("http://127.0.0.1:${server.address.port}/$key/manifest.json")
+            assertEquals(listOf("catalog", "meta"), manifest("strings").resources.map { it.name })
+            assertEquals(listOf("movie"), manifest("strings").resources.first().types)
+            assertEquals(
+                listOf(AddonResource("stream", listOf("series"), listOf("tt"))),
+                manifest("objects").resources,
+            )
+            assertEquals(listOf("catalog", "meta"), manifest("mixed").resources.map { it.name })
+            assertEquals(listOf("movie"), manifest("mixed").resources.last().types)
+            bodies.keys.drop(3).forEach { key ->
+                assertEquals("KZ.ADDON_INVALID_MANIFEST", assertFailsWith<AddonFailure>(key) { manifest(key) }.code, key)
+            }
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test
     fun `reports HTTP and invalid manifest errors without exposing configuration or response bodies`() {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->

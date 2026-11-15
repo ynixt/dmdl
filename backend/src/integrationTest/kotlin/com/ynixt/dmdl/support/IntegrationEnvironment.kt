@@ -98,11 +98,12 @@ open class IntegrationEnvironment {
                                     emptyMap<String, String>()
                                 }
 
-                                // A server that only understands the legacy token header.
-                                path.startsWith("/jellyfin-legacy/") &&
-                                    exchange.requestHeaders.getFirst("X-Emby-Token") != "fixture-token" -> {
-                                    status = 401
-                                    emptyMap<String, String>()
+                                path.endsWith("/manifest.json") && path.startsWith("/malformed") -> {
+                                    mapOf("id" to "fixture.malformed", "name" to "Malformed", "resources" to mapOf("name" to "stream"))
+                                }
+
+                                path.endsWith("/manifest.json") && path.startsWith("/catalog-only") -> {
+                                    mapOf("id" to "fixture.catalog", "name" to "Catalog only", "resources" to listOf("catalog"))
                                 }
 
                                 path.endsWith("/manifest.json") -> {

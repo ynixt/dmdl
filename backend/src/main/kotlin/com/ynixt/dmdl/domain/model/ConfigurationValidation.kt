@@ -2,7 +2,6 @@ package com.ynixt.dmdl.domain.model
 
 import com.ynixt.dmdl.domain.gateway.AddonGateway
 import com.ynixt.dmdl.domain.gateway.FileFinalizer
-import java.net.URI
 import java.util.UUID
 
 class ConfigurationValidation(
@@ -18,21 +17,7 @@ class ConfigurationValidation(
     ): AddonConfiguration {
         val manifestUrl = normalizeAddonManifestUrl(url)
         val manifest = addons.manifest(manifestUrl)
-        val compatible =
-            if (metadata) {
-                manifest.resources.any { it.name == "meta" } && manifest.catalogs.any { it.searchable }
-            } else {
-                manifest.resources.any {
-                    it.name == "stream" &&
-                        (it.types.isEmpty() || it.types.any { type -> type in setOf("movie", "series", "anime") })
-                }
-            }
-        if (!compatible) {
-            throw AddonFailure(
-                "Manifest does not support the required resources",
-                if (metadata) "KZ.ADDON_METADATA_INCOMPATIBLE" else "KZ.ADDON_SEARCH_INCOMPATIBLE",
-            )
-        }
+        requireRole(manifest, metadata)
         return AddonConfiguration(
             UUID.randomUUID(),
             1,
@@ -42,6 +27,26 @@ class ConfigurationValidation(
             position,
             name?.trim()?.takeIf(String::isNotBlank) ?: manifest.name,
         )
+    }
+
+    /** Checks the resource declarations a manifest needs for its configured role, without fetching it. */
+    fun requireRole(
+        manifest: AddonManifest,
+        metadata: Boolean,
+    ) {
+        val declared = manifest.resources.mapTo(mutableSetOf()) { it.name }
+        val code =
+            if (metadata) {
+                when {
+                    "catalog" !in declared && "meta" !in declared -> "KZ.ADDON_MISSING_CATALOG_META"
+                    "catalog" !in declared -> "KZ.ADDON_MISSING_CATALOG"
+                    "meta" !in declared -> "KZ.ADDON_MISSING_META"
+                    else -> null
+                }
+            } else {
+                "KZ.ADDON_MISSING_STREAM".takeIf { "stream" !in declared }
+            }
+        if (code != null) throw AddonFailure("Manifest does not declare the required resources", code)
     }
 
     fun settings(
@@ -61,17 +66,5 @@ class ConfigurationValidation(
                 transfer.autoSaveIntervalSeconds in 0..600,
         ) { "Invalid aria2 transfer settings" }
         require(settings.locale in setOf("en", "en-US", "pt-BR")) { "Unsupported language" }
-        jellyfin(settings.jellyfin)
-    }
-
-    fun jellyfin(settings: JellyfinSettings) {
-        if (!settings.enabled) return
-        require(!settings.url.isNullOrBlank() && !settings.token.isNullOrBlank()) { "Enabled Jellyfin requires a URL and token" }
-        val uri = URI(settings.url)
-        require(
-            uri.scheme in setOf("http", "https") && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null,
-        ) {
-            "Invalid Jellyfin base URL"
-        }
     }
 }
