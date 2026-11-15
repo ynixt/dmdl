@@ -198,6 +198,25 @@ docker compose logs dmdl | grep '\[aria2\]'
 
 The example compose files keep at most three 10 MB log files per service.
 
+## Development
+
+### Creating a release
+
+With Make, Node.js and Git installed, run this from the repository root on Windows, Linux or macOS:
+
+```sh
+make release 0.0.8
+```
+
+Use a version in `MAJOR.MINOR.PATCH` format, optionally prefixed with `v`. The command updates `frontend/package.json`, `frontend/package-lock.json`, `backend/build.gradle.kts` and the version examples in this README. It commits those four files with the version tag as the commit message and creates a local Git tag such as `v0.0.8`. Other staged files stay staged. An existing tag causes the command to stop before changing files.
+
+To publish the release commit and tag:
+
+```sh
+git push origin HEAD
+git push origin v0.0.8
+```
+
 ## License
 
 [MIT](LICENSE)

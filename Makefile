@@ -1,4 +1,4 @@
-.PHONY: build-backend build-frontend up down logs test
+.PHONY: build-backend build-frontend up down logs test release
 
 ifeq ($(OS),Windows_NT)
 NULL_DEVICE := NUL
@@ -29,3 +29,21 @@ logs:
 test:
 	cd backend && ./gradlew test integrationTest ktlintCheck
 	cd frontend && npm run build && npm run lint && npm test -- --watch=false
+
+ifeq ($(firstword $(MAKECMDGOALS)),release)
+ifneq ($(word 2,$(MAKECMDGOALS)),)
+ifneq ($(words $(MAKECMDGOALS)),2)
+$(error Usage: make release MAJOR.MINOR.PATCH)
+endif
+ifneq ($(strip $(VERSION)),)
+$(error Specify the version once: make release MAJOR.MINOR.PATCH)
+endif
+VERSION := $(word 2,$(MAKECMDGOALS))
+# Consume the positional version as a target after release completes.
+.PHONY: $(VERSION)
+$(VERSION): release
+endif
+endif
+
+release:
+	node scripts/release.mjs "$(VERSION)"
