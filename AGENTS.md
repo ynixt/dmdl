@@ -12,7 +12,6 @@ Debrid Media Downloader (dmdl) is a self-hosted app that searches movies, series
 backend/    Kotlin + Spring Boot (Gradle, Kotlin DSL)
 frontend/   Angular (npm). Gradle does NOT build the frontend.
 docker/     Image runtime: entrypoint, nginx, aria2, log collector, healthchecks
-bruno/      Bruno collection documenting the HTTP API
 scripts/    Release script (used by `make release`)
 ```
 
@@ -46,7 +45,6 @@ Rules (most are enforced by `ArchitectureConventionsTest`):
 ## Conventions
 
 - New database change → a new Flyway file `V{n}__{description}.sql` in `db/sqlite/`. Never edit a released migration.
-- New or changed endpoint → update the matching request in `bruno/`.
 - Every user-facing frontend text goes through ngx-translate, with keys in both `frontend/public/i18n/en-US.json` and `pt-BR.json`.
 - Never log secrets: addon manifest URLs and debrid links often carry API keys or tokens.
 - Code, comments, commit messages and docs are written in English.

@@ -60,8 +60,7 @@ Open <http://localhost:4200>. The dev server proxies `/api` to the backend on po
 3. Follow the conventions in [AGENTS.md](AGENTS.md). The most common ones:
    - keep `domain/` free of Spring/JPA and of HTTP concepts (the ArchUnit tests check this);
    - add a new Flyway migration instead of editing a released one;
-   - add every UI text to both `en-US.json` and `pt-BR.json`;
-   - update the Bruno collection in `bruno/` when an endpoint changes.
+   - add every UI text to both `en-US.json` and `pt-BR.json`.
 4. Add a line under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for any user-visible change.
 5. Keep pull requests focused, and describe what changed and how you tested it. Screenshots help for UI changes.
 
