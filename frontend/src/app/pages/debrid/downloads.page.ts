@@ -20,6 +20,7 @@ import {
   Download,
   DownloadEvent,
   DownloadStatus,
+  FinalizationProgress,
   SpeedSample,
   TransferPhase,
 } from '../../services/debrid-api.service';
@@ -216,6 +217,16 @@ export class DownloadsPage implements OnInit {
     if (item.state !== 'TRANSFERRING') return 'TRANSFERRING';
     if (this.now() - this.receivedAt() > STALE_PROGRESS_MS) return 'STALE';
     return item.progress.phase ?? 'TRANSFERRING';
+  }
+  finalizationPercentage(step: FinalizationProgress | null | undefined): number {
+    if (!step?.totalBytes) return 0;
+    return Math.max(0, Math.min(100, (100 * (step.processedBytes ?? 0)) / step.totalBytes));
+  }
+  finalizationRemainingSeconds(step: FinalizationProgress | null | undefined): number | undefined {
+    if (!step?.totalBytes || !step.bytesPerSecond) return undefined;
+    return Math.ceil(
+      Math.max(0, step.totalBytes - (step.processedBytes ?? 0)) / step.bytesPerSecond,
+    );
   }
   pendingMiB(item: Download): number {
     return Math.round((item.progress.pendingWriteBytes ?? 0) / 1048576);

@@ -5,6 +5,7 @@ import com.ynixt.dmdl.domain.model.AddonManifest
 import com.ynixt.dmdl.domain.model.ApplicationSettings
 import com.ynixt.dmdl.domain.model.Aria2TransferOptions
 import com.ynixt.dmdl.domain.model.ConfigurationConflict
+import com.ynixt.dmdl.domain.model.FinalizationChecks
 import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.model.OrganizationSettings
 import com.ynixt.dmdl.domain.model.PreparedSetup
@@ -47,6 +48,8 @@ class JpaConfigurationStore(
                 it.setupSubmissionId?.let(UUID::fromString),
                 it.setupFingerprint,
                 it.streamBadgeJson ?: StreamBadgeRules.defaultJson,
+                // Rows saved before the finalization checks existed read the defaults.
+                it.finalizationJson?.let { value -> json.readValue(value, FinalizationChecks::class.java) } ?: FinalizationChecks(),
             )
         }
 
@@ -112,6 +115,7 @@ class JpaConfigurationStore(
                 settings.setupSubmissionId?.toString(),
                 settings.setupFingerprint,
                 settings.streamBadgeJson,
+                json.writeValueAsString(settings.finalization),
             ),
         )
     }

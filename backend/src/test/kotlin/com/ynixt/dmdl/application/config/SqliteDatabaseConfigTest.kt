@@ -57,7 +57,7 @@ class SqliteDatabaseConfigTest {
                     .dataSource(source)
                     .locations("classpath:db/sqlite")
                     .load()
-            assertEquals(7, flyway.migrate().migrationsExecuted)
+            assertEquals(8, flyway.migrate().migrationsExecuted)
             source.connection.use { first ->
                 source.connection.use { second ->
                     listOf(first, second).forEach { connection ->
@@ -94,7 +94,7 @@ class SqliteDatabaseConfigTest {
                 metadata.buildMetadata().buildSessionFactory().use { factory: SessionFactory ->
                     factory.openSession().use { session ->
                         assertEquals(
-                            8L,
+                            9L,
                             session
                                 .createNativeQuery(
                                     "SELECT count(*) FROM flyway_schema_history WHERE success = 1",

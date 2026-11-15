@@ -10,6 +10,7 @@ import com.ynixt.dmdl.domain.model.AddonFailure
 import com.ynixt.dmdl.domain.model.Aria2TransferOptions
 import com.ynixt.dmdl.domain.model.ConfigurationValidation
 import com.ynixt.dmdl.domain.model.ContentSnapshot
+import com.ynixt.dmdl.domain.model.FinalizationChecks
 import com.ynixt.dmdl.domain.model.JellyfinSettings
 import com.ynixt.dmdl.domain.model.OrganizationRenderer
 import com.ynixt.dmdl.domain.model.OrganizationSettings
@@ -36,6 +37,7 @@ data class SettingsInput(
     val transfer: Aria2TransferOptions? = null,
     val jellyfin: JellyfinSettings? = null,
     val streamBadgeJson: String? = null,
+    val finalization: FinalizationChecks? = null,
 ) : StrictRequest()
 
 data class AddonInput(
@@ -89,6 +91,7 @@ class SettingsController(
             "maxConcurrentDownloads" to settings.maxConcurrentDownloads,
             "organization" to settings.organization,
             "transfer" to settings.transfer,
+            "finalization" to settings.finalization,
             "onboardingCompleted" to settings.onboardingCompleted,
             "configurationRevision" to settings.configurationRevision,
             "storageRoot" to root(),
@@ -121,6 +124,7 @@ class SettingsController(
                 transfer = transfer,
                 jellyfin = notify,
                 streamBadgeJson = input.streamBadgeJson ?: old.streamBadgeJson,
+                finalization = input.finalization ?: old.finalization,
             )
         validation.settings(updated)
         store.saveSettings(updated)

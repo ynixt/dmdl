@@ -75,50 +75,88 @@
               {{ 'KZ.PREPARING_TRANSFER' | translate }}
             </p>
           }
-          <p-progressbar [value]="percentage(request)">
-            <ng-template #content let-value>{{ value | number: '1.0-2' }}%</ng-template>
-          </p-progressbar>
-          <p>
-            {{
-              request.progress.completedBytes / byteScale(request.progress.totalBytes)
-                | number: '1.1-1'
-            }}
-            /
-            {{
-              (request.progress.totalBytes ?? 0) / byteScale(request.progress.totalBytes)
-                | number: '1.1-1'
-            }}
-            {{ byteUnit(request.progress.totalBytes) }} ·
-            @switch (phase(request)) {
-              @case ('WAITING_FOR_ARIA2') {
-                <span class="transfer-phase" role="status">
-                  <i class="pi pi-hourglass" aria-hidden="true"></i>
-                  {{ 'KZ.PHASE_WAITING_FOR_ARIA2' | translate }}
-                </span>
+          @if (request.state === 'FINALIZING') {
+            @let step = request.progress.finalization;
+            <div class="finalization-progress" role="status" aria-live="polite">
+              <p class="transfer-phase">
+                <i class="pi pi-spin pi-cog" aria-hidden="true"></i>
+                {{ 'KZ.FINALIZATION_STEP_' + (step?.step ?? 'STARTING') | translate }}
+              </p>
+              @if (step?.totalBytes) {
+                <p-progressbar [value]="finalizationPercentage(step)">
+                  <ng-template #content let-value>{{ value | number: '1.0-1' }}%</ng-template>
+                </p-progressbar>
+                <p>
+                  {{
+                    (step?.processedBytes ?? 0) / byteScale(step?.totalBytes ?? 0) | number: '1.1-1'
+                  }}
+                  /
+                  {{ (step?.totalBytes ?? 0) / byteScale(step?.totalBytes ?? 0) | number: '1.1-1' }}
+                  {{ byteUnit(step?.totalBytes ?? 0) }}
+                  @if (step?.bytesPerSecond) {
+                    · {{ (step?.bytesPerSecond ?? 0) / 1048576 | number: '1.0-0' }} MiB/s
+                  }
+                </p>
+                @let remaining = finalizationRemainingSeconds(step);
+                <p class="hint">
+                  {{ 'KZ.FINALIZATION_ETA' | translate }}
+                  @if (remaining !== undefined) {
+                    {{ duration(remaining) }}
+                  } @else {
+                    {{ 'KZ.CALCULATING_ETA' | translate }}
+                  }
+                </p>
+              } @else {
+                <p-progressbar mode="indeterminate" [style]="{ height: '6px' }" />
               }
-              @case ('WRITING_TO_DISK') {
-                <span class="transfer-phase" role="status">
-                  <i class="pi pi-save" aria-hidden="true"></i>
-                  {{ 'KZ.PHASE_WRITING_TO_DISK' | translate: { pending: pendingMiB(request) } }}
-                </span>
+              <p class="hint">{{ 'KZ.FINALIZATION_EXPLAIN' | translate }}</p>
+            </div>
+          } @else {
+            <p-progressbar [value]="percentage(request)">
+              <ng-template #content let-value>{{ value | number: '1.0-2' }}%</ng-template>
+            </p-progressbar>
+            <p>
+              {{
+                request.progress.completedBytes / byteScale(request.progress.totalBytes)
+                  | number: '1.1-1'
+              }}
+              /
+              {{
+                (request.progress.totalBytes ?? 0) / byteScale(request.progress.totalBytes)
+                  | number: '1.1-1'
+              }}
+              {{ byteUnit(request.progress.totalBytes) }} ·
+              @switch (phase(request)) {
+                @case ('WAITING_FOR_ARIA2') {
+                  <span class="transfer-phase" role="status">
+                    <i class="pi pi-hourglass" aria-hidden="true"></i>
+                    {{ 'KZ.PHASE_WAITING_FOR_ARIA2' | translate }}
+                  </span>
+                }
+                @case ('WRITING_TO_DISK') {
+                  <span class="transfer-phase" role="status">
+                    <i class="pi pi-save" aria-hidden="true"></i>
+                    {{ 'KZ.PHASE_WRITING_TO_DISK' | translate: { pending: pendingMiB(request) } }}
+                  </span>
+                }
+                @case ('ARIA2_RESTARTING') {
+                  <span class="transfer-phase" role="status">
+                    <i class="pi pi-spin pi-sync" aria-hidden="true"></i>
+                    {{ 'KZ.PHASE_ARIA2_RESTARTING' | translate }}
+                  </span>
+                }
+                @case ('STALE') {
+                  <span class="transfer-phase" role="status">
+                    <i class="pi pi-hourglass" aria-hidden="true"></i>
+                    {{ 'KZ.PHASE_STALE' | translate }}
+                  </span>
+                }
+                @default {
+                  {{ request.progress.speedBytesPerSecond / 1048576 | number: '1.1-1' }} MiB/s
+                }
               }
-              @case ('ARIA2_RESTARTING') {
-                <span class="transfer-phase" role="status">
-                  <i class="pi pi-spin pi-sync" aria-hidden="true"></i>
-                  {{ 'KZ.PHASE_ARIA2_RESTARTING' | translate }}
-                </span>
-              }
-              @case ('STALE') {
-                <span class="transfer-phase" role="status">
-                  <i class="pi pi-hourglass" aria-hidden="true"></i>
-                  {{ 'KZ.PHASE_STALE' | translate }}
-                </span>
-              }
-              @default {
-                {{ request.progress.speedBytesPerSecond / 1048576 | number: '1.1-1' }} MiB/s
-              }
-            }
-          </p>
+            </p>
+          }
           @if (request.state === 'TRANSFERRING' && !cancelling(request)) {
             <p class="hint">
               {{

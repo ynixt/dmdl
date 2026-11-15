@@ -382,4 +382,54 @@ describe('Downloads page insights', () => {
     active.request.progress = { ...active.request.progress, averageBytesPerSecond: 0 };
     expect(page.remainingSeconds(active.request)).toBeUndefined();
   });
+  it('shows the finalization step with progress, throughput and remaining time instead of the transfer line', async () => {
+    const finalizing = download('finalizing', 'FINALIZING');
+    finalizing.request.progress = {
+      completedBytes: 57.2e9,
+      totalBytes: 57.2e9,
+      speedBytesPerSecond: 0,
+      finalization: {
+        step: 'HASHING_DOWNLOAD',
+        processedBytes: 24e9,
+        totalBytes: 57.2e9,
+        bytesPerSecond: 180e6,
+      },
+    };
+    records = [finalizing];
+    await render();
+    const block = section('finalizing').querySelector('.finalization-progress') as HTMLElement;
+    expect(block.textContent).toContain('KZ.FINALIZATION_STEP_HASHING_DOWNLOAD');
+    expect(block.textContent).toContain('24.0');
+    expect(block.textContent).toContain('57.2');
+    expect(block.textContent).toContain('MiB/s');
+    expect(
+      fixture.componentInstance.finalizationPercentage(finalizing.request.progress.finalization),
+    ).toBeCloseTo(41.96, 1);
+    expect(
+      fixture.componentInstance.finalizationRemainingSeconds(
+        finalizing.request.progress.finalization,
+      ),
+    ).toBe(185);
+    expect(section('finalizing').textContent).not.toContain('KZ.DOWNLOAD_ETA');
+  });
+
+  it('shows an indeterminate indicator for a finalization step without byte progress', async () => {
+    const placing = download('placing', 'FINALIZING');
+    placing.request.progress = {
+      completedBytes: 1024,
+      totalBytes: 1024,
+      speedBytesPerSecond: 0,
+      finalization: { step: 'PLACING' },
+    };
+    const starting = download('starting', 'FINALIZING');
+    records = [placing, starting];
+    await render();
+    expect(section('placing').querySelector('.finalization-progress')?.textContent).toContain(
+      'KZ.FINALIZATION_STEP_PLACING',
+    );
+    expect(section('placing').querySelector('.p-progressbar-indeterminate')).not.toBeNull();
+    expect(section('starting').querySelector('.finalization-progress')?.textContent).toContain(
+      'KZ.FINALIZATION_STEP_STARTING',
+    );
+  });
 });

@@ -5,6 +5,7 @@ import com.ynixt.dmdl.application.config.TransactionConfig
 import com.ynixt.dmdl.domain.model.AddonConfiguration
 import com.ynixt.dmdl.domain.model.AddonManifest
 import com.ynixt.dmdl.domain.model.ApplicationSettings
+import com.ynixt.dmdl.domain.model.FinalizationChecks
 import com.ynixt.dmdl.resource.persistence.service.JpaConfigurationStore
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -13,6 +14,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.annotation.Propagation
@@ -22,6 +24,7 @@ import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.KotlinModule
 import java.nio.file.Files
 import java.util.UUID
+import javax.sql.DataSource
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -35,6 +38,27 @@ class JpaConfigurationStoreTest {
     @TestConfiguration
     class JsonConfig {
         @Bean fun json(): ObjectMapper = JsonMapper.builder().addModule(KotlinModule.Builder().build()).build()
+    }
+
+    @Autowired lateinit var dataSource: DataSource
+
+    @Test
+    fun `finalization checks default to the downloaded-file hash, round trip, and old rows read the defaults`() {
+        // The database is shared by this class; another test may already have created the account with defaults.
+        if (store.settings() == null) assertTrue(store.createAccount(ApplicationSettings("fixture", "hash")))
+        val jdbc = JdbcTemplate(dataSource)
+        assertEquals(
+            FinalizationChecks(hashDownloadedFile = true, verifyCopy = false, verifyPlacedFile = false),
+            store.settings()!!.finalization,
+        )
+        val changed = FinalizationChecks(hashDownloadedFile = false, verifyCopy = true, verifyPlacedFile = true)
+        store.saveSettings(store.settings()!!.copy(finalization = changed))
+        assertEquals(changed, store.settings()!!.finalization)
+        // A row saved before the column existed.
+        jdbc.update("UPDATE application_settings SET finalization_json = NULL")
+        assertEquals(FinalizationChecks(), store.settings()!!.finalization)
+        // Leave no account behind for tests that create one.
+        jdbc.update("DELETE FROM application_settings")
     }
 
     @Test

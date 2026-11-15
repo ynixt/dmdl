@@ -21,6 +21,8 @@ import com.ynixt.dmdl.domain.model.DownloadProgress
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadState
 import com.ynixt.dmdl.domain.model.DownloadWakeUp
+import com.ynixt.dmdl.domain.model.FinalizationChecks
+import com.ynixt.dmdl.domain.model.FinalizationStep
 import com.ynixt.dmdl.domain.model.MediaCategory
 import com.ynixt.dmdl.domain.model.OrganizationRenderer
 import com.ynixt.dmdl.domain.model.OrganizationSnapshot
@@ -97,7 +99,7 @@ class DownloadServiceImpl(
     override fun speedHistory(id: UUID): List<SpeedSample>? = store.find(id)?.let { speedHistory.find(id) }
 
     private fun withLiveProgress(request: DownloadRequest): DownloadRequest =
-        if (request.state == DownloadState.TRANSFERRING) {
+        if (request.state == DownloadState.TRANSFERRING || request.state == DownloadState.FINALIZING) {
             request.copy(progress = progress.find(request.id, request.execution.generation) ?: request.progress)
         } else {
             request.copy(
@@ -113,6 +115,7 @@ class DownloadServiceImpl(
                         diskActivity = null,
                         diskBytesPerSecond = null,
                         pendingWriteBytes = null,
+                        finalization = null,
                     ),
             )
         }
@@ -342,10 +345,40 @@ class DownloadServiceImpl(
             request = stamped
             if (stamped.state == DownloadState.COMPLETED) speedHistory.delete(stamped.id)
         }
+
+        /** Places the file with the configured checks, publishing each finalization step and its progress live. */
+        fun finalizeOutput(): DownloadRequest {
+            val checks = configuration.settings()?.finalization ?: FinalizationChecks()
+            var stepStartedAt = System.nanoTime()
+            var currentStep: FinalizationStep? = null
+            return finalizer.finalize(request, checks, { step ->
+                if (step.step != currentStep) {
+                    currentStep = step.step
+                    stepStartedAt = System.nanoTime()
+                }
+                val seconds = (System.nanoTime() - stepStartedAt) / 1_000_000_000.0
+                val rate = step.processedBytes?.takeIf { seconds >= 1 }?.let { (it / seconds).toLong() }
+                progress.publish(
+                    request.id,
+                    request.execution.generation,
+                    request.progress.copy(
+                        speedBytesPerSecond = 0,
+                        connections = null,
+                        aria2SpeedBytesPerSecond = null,
+                        averageBytesPerSecond = null,
+                        aria2AnsweredAt = null,
+                        phase = null,
+                        diskBytesPerSecond = null,
+                        pendingWriteBytes = null,
+                        finalization = step.copy(bytesPerSecond = rate),
+                    ),
+                )
+            }, ::save)
+        }
         try {
             require(request.release.reference.type == ReleaseReferenceType.PROVIDER_HTTP) { "KZ.ADDON_HTTP_REQUIRED" }
             if (request.execution.placement != PlacementState.NONE || request.state == DownloadState.FINALIZING) {
-                val placed = finalizer.finalize(request, ::save)
+                val placed = finalizeOutput()
                 save(placed.copy(state = DownloadState.COMPLETED, completedAt = Instant.now()))
                 return
             }
@@ -599,7 +632,7 @@ class DownloadServiceImpl(
                                     ),
                             ),
                         )
-                        val placed = finalizer.finalize(request, ::save)
+                        val placed = finalizeOutput()
                         save(placed.copy(state = DownloadState.COMPLETED, completedAt = Instant.now()))
                         return
                     } else if (status.state in

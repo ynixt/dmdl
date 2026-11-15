@@ -7,6 +7,9 @@ import com.ynixt.dmdl.domain.model.DownloadExecution
 import com.ynixt.dmdl.domain.model.DownloadProgress
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadState
+import com.ynixt.dmdl.domain.model.FinalizationChecks
+import com.ynixt.dmdl.domain.model.FinalizationProgress
+import com.ynixt.dmdl.domain.model.FinalizationStep
 import com.ynixt.dmdl.domain.model.MediaCategory
 import com.ynixt.dmdl.domain.model.OrganizationRenderer
 import com.ynixt.dmdl.domain.model.OrganizationSettings
@@ -199,6 +202,91 @@ class ValidatedFileFinalizerTest {
         finalizer.cleanupCompleted(recovered.copy(state = DownloadState.COMPLETED, completedAt = Instant.now()))
         assertFalse(Files.exists(directory))
         assertTrue(Files.exists(target))
+    }
+
+    private fun countingFinalizer(reads: MutableList<Path>) = ValidatedFileFinalizer { reads.add(it) }
+
+    @Test fun `same filesystem reads the file once with every check on and once with the defaults`() {
+        listOf(
+            FinalizationChecks(hashDownloadedFile = true, verifyCopy = true, verifyPlacedFile = true),
+            FinalizationChecks(),
+        ).forEach { checks ->
+            val reads = mutableListOf<Path>()
+            val request = request()
+            val placed = countingFinalizer(reads).finalize(request, checks) {}
+            assertEquals(1, reads.size, "checks $checks")
+            assertEquals(64, assertNotNull(placed.execution.outputSha256).length)
+            // Both runs render the same destination name.
+            Files.delete(Path.of(placed.execution.finalPath!!))
+        }
+    }
+
+    @Test fun `with every check off nothing is hashed and placement still completes`() {
+        val reads = mutableListOf<Path>()
+        val placed =
+            countingFinalizer(reads).finalize(
+                request(),
+                FinalizationChecks(hashDownloadedFile = false, verifyCopy = false, verifyPlacedFile = false),
+            ) {}
+        assertEquals(0, reads.size)
+        assertEquals(PlacementState.PLACED, placed.execution.placement)
+        assertEquals(null, placed.execution.outputSha256)
+    }
+
+    @Test fun `only the final-file check hashes the placed file once and records it`() {
+        val reads = mutableListOf<Path>()
+        val placed =
+            countingFinalizer(reads).finalize(request(), FinalizationChecks(hashDownloadedFile = false, verifyPlacedFile = true)) {}
+        assertEquals(1, reads.size)
+        assertNotNull(placed.execution.outputSha256)
+    }
+
+    @Test fun `cleanup after completion and cancellation never hashes`() {
+        val reads = mutableListOf<Path>()
+        val finalizer = countingFinalizer(reads)
+        val completed = finalizer.finalize(request()) {}
+        reads.clear()
+        finalizer.cleanupCompleted(completed.copy(state = DownloadState.COMPLETED, completedAt = Instant.now()))
+        assertEquals(0, reads.size)
+        assertTrue(Files.exists(Path.of(completed.execution.finalPath!!)))
+        // The next request renders the same destination name.
+        Files.delete(Path.of(completed.execution.finalPath!!))
+
+        val cancelled = finalizer.finalize(request()) {}
+        reads.clear()
+        finalizer.cleanupCancelled(cancelled.copy(state = DownloadState.CANCELLED))
+        assertEquals(0, reads.size)
+        assertFalse(Files.exists(Path.of(cancelled.execution.finalPath!!)))
+    }
+
+    @Test fun `reports the verification, flushing and placing steps`() {
+        val steps = mutableListOf<FinalizationProgress>()
+        finalizer.finalize(request(), FinalizationChecks(), { steps += it }) {}
+        assertEquals(
+            listOf(FinalizationStep.HASHING_DOWNLOAD, FinalizationStep.FLUSHING, FinalizationStep.PLACING),
+            steps.map { it.step }.distinct(),
+        )
+        val hashing = steps.filter { it.step == FinalizationStep.HASHING_DOWNLOAD }
+        assertEquals(0L, hashing.first().processedBytes)
+        assertEquals(1024L, hashing.last().processedBytes)
+        assertTrue(hashing.all { it.totalBytes == 1024L })
+    }
+
+    @Test fun `a recorded hash from before the restart still detects a changed staging file`() {
+        val request = request()
+        var journal = request
+        assertFailsWith<SimulatedCrash> {
+            finalizer.finalize(request) {
+                journal = it
+                throw SimulatedCrash()
+            }
+        }
+        assertNotNull(journal.execution.outputSha256)
+        val staging = Path.of(request.execution.stagingPath!!)
+        val bytes = Files.readAllBytes(staging).also { it[100] = 7 }
+        Files.write(staging, bytes)
+        assertFailsWith<IllegalArgumentException> { finalizer.finalize(journal) {} }
+        assertFalse(Files.exists(Path.of(journal.execution.finalPath!!)))
     }
 
     private class SimulatedCrash : RuntimeException()

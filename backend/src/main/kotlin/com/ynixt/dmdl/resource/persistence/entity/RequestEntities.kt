@@ -96,6 +96,7 @@ class ApplicationSettingsEntity(
     var setupSubmissionId: String? = null,
     var setupFingerprint: String? = null,
     var streamBadgeJson: String? = null,
+    var finalizationJson: String? = null,
 ) {
     override fun toString(): String = "ApplicationSettingsEntity(id=$id)"
 }

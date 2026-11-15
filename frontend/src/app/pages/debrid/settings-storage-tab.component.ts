@@ -9,6 +9,7 @@ import { SettingsFeedbackComponent } from './settings-feedback.component';
 import { StorageFieldsComponent } from './storage-fields.component';
 import { TransferFieldsComponent } from './transfer-fields.component';
 import { Aria2RestartComponent } from './aria2-restart.component';
+import { FinalizationFieldsComponent } from './finalization-fields.component';
 
 @Component({
   selector: 'app-settings-storage-tab',
@@ -21,6 +22,7 @@ import { Aria2RestartComponent } from './aria2-restart.component';
     StorageFieldsComponent,
     TransferFieldsComponent,
     Aria2RestartComponent,
+    FinalizationFieldsComponent,
   ],
   styleUrls: ['./debrid.scss', './wizard.scss'],
   template: `
@@ -66,6 +68,12 @@ import { Aria2RestartComponent } from './aria2-restart.component';
       <h3>{{ 'KZ.TRANSFER_SETTINGS' | translate }}</h3>
       <app-transfer-fields
         [settings]="slice.draft()"
+        [disabled]="slice.saving()"
+        (changed)="slice.touch()"
+      />
+      <h3>{{ 'KZ.FINALIZATION' | translate }}</h3>
+      <app-finalization-fields
+        [checks]="slice.draft().finalization"
         [disabled]="slice.saving()"
         (changed)="slice.touch()"
       />

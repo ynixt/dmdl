@@ -21,6 +21,7 @@ import com.ynixt.dmdl.domain.model.DownloadProgress
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadState
 import com.ynixt.dmdl.domain.model.DownloadWakeUp
+import com.ynixt.dmdl.domain.model.FinalizationStep
 import com.ynixt.dmdl.domain.model.MediaCategory
 import com.ynixt.dmdl.domain.model.OrganizationSettings
 import com.ynixt.dmdl.domain.model.OrganizationSnapshot
@@ -736,9 +737,19 @@ class DownloadLifecycleTest {
                 )
             }
         }
+        val published = mutableListOf<DownloadProgress>()
+        every { progress.publish(any(), any(), capture(published)) } just Runs
         service.execute(DownloadWakeUp(request.id, 1))
         val completed = current.get()
         assertEquals(DownloadState.COMPLETED, completed.state)
+        // Finalization publishes its steps live, with the default checks: hash the download, flush, place.
+        val finalization = published.mapNotNull { it.finalization }
+        assertEquals(
+            listOf(FinalizationStep.HASHING_DOWNLOAD, FinalizationStep.FLUSHING, FinalizationStep.PLACING),
+            finalization.map { it.step }.distinct(),
+        )
+        assertEquals(bytes.size.toLong(), finalization.last { it.step == FinalizationStep.HASHING_DOWNLOAD }.processedBytes)
+        assertTrue(published.filter { it.finalization != null }.all { it.speedBytesPerSecond == 0L && it.phase == null })
         assertEquals(listOf(Aria2FileAllocation.FALLOC, Aria2FileAllocation.PREALLOC), modes)
         assertEquals(1, gids.toSet().size)
         assertEquals(Aria2FileAllocation.PREALLOC, completed.execution.fileAllocationOverride)

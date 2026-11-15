@@ -181,6 +181,24 @@ export interface Transfer {
   maxConcurrentPerDebrid?: number;
   autoSaveIntervalSeconds?: number;
 }
+export interface FinalizationChecks {
+  hashDownloadedFile: boolean;
+  verifyCopy: boolean;
+  verifyPlacedFile: boolean;
+}
+export type FinalizationStep =
+  | 'HASHING_DOWNLOAD'
+  | 'COPYING'
+  | 'VERIFYING_COPY'
+  | 'VERIFYING_PLACED_FILE'
+  | 'FLUSHING'
+  | 'PLACING';
+export interface FinalizationProgress {
+  step: FinalizationStep;
+  processedBytes?: number | null;
+  totalBytes?: number | null;
+  bytesPerSecond?: number | null;
+}
 export interface Settings {
   username: string;
   locale: string;
@@ -188,6 +206,7 @@ export interface Settings {
   maxConcurrentDownloads: number;
   organization: Organization;
   transfer: Transfer;
+  finalization?: FinalizationChecks;
   storageRoot: string;
   onboardingCompleted: boolean;
   configurationRevision: number;
@@ -228,6 +247,8 @@ export interface Download {
     diskBytesPerSecond?: number | null;
     /** Container-wide page-cache bytes waiting to be written to disk. */
     pendingWriteBytes?: number | null;
+    /** Step and progress while the download is finalizing. */
+    finalization?: FinalizationProgress | null;
   };
   execution: {
     generation: number;

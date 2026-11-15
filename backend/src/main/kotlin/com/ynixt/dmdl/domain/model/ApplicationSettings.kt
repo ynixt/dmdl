@@ -23,6 +23,7 @@ data class ApplicationSettings(
     val setupSubmissionId: UUID? = null,
     val setupFingerprint: String? = null,
     val streamBadgeJson: String = StreamBadgeRules.defaultJson,
+    val finalization: FinalizationChecks = FinalizationChecks(),
 ) {
     init {
         require(maxConcurrentDownloads in 1..32)

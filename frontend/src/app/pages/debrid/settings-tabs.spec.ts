@@ -284,6 +284,7 @@ describe('Settings tabs and independent drafts', () => {
     await page.store.saveStorage();
     expect(api.put).toHaveBeenCalledExactlyOnceWith('/settings', {
       transfer: expect.objectContaining({ maxTries: 8 }),
+      finalization: { hashDownloadedFile: true, verifyCopy: false, verifyPlacedFile: false },
       maxConcurrentDownloads: 2,
     });
     expect(page.store.storage.dirty()).toBe(false);

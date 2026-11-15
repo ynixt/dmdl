@@ -9,6 +9,7 @@ import {
   SearchAddonInput,
   Settings,
   Transfer,
+  FinalizationChecks,
 } from '../../services/debrid-api.service';
 
 export type SettingsTab = 'metadata' | 'search' | 'storage' | 'jellyfin';
@@ -20,9 +21,15 @@ export interface SearchDraft {
   addons: SearchAddonInput[];
   streamBadgeJson: string;
 }
+export const DEFAULT_FINALIZATION: FinalizationChecks = {
+  hashDownloadedFile: true,
+  verifyCopy: false,
+  verifyPlacedFile: false,
+};
 export interface StorageDraft {
   organization: Organization;
   transfer: Transfer;
+  finalization: FinalizationChecks;
   maxConcurrentDownloads: number;
 }
 export type JellyfinDraft = Settings['jellyfin'];
@@ -97,6 +104,7 @@ export class SettingsDraftStore {
       fileAllocation: 'PREALLOC',
       ipv6Enabled: false,
     },
+    finalization: { ...DEFAULT_FINALIZATION },
   });
   readonly jellyfin = new SettingsSlice<JellyfinDraft>({ enabled: false, url: '', token: '' });
   readonly anyDirty = computed(
@@ -125,6 +133,7 @@ export class SettingsDraftStore {
       this.storage.initialize({
         organization: settings.organization,
         transfer: settings.transfer,
+        finalization: settings.finalization ?? { ...DEFAULT_FINALIZATION },
         maxConcurrentDownloads: settings.maxConcurrentDownloads,
       });
       this.jellyfin.initialize({
@@ -186,11 +195,13 @@ export class SettingsDraftStore {
           ? { organization: value.organization }
           : {}),
         transfer: value.transfer,
+        finalization: value.finalization,
         maxConcurrentDownloads: value.maxConcurrentDownloads,
       });
       this.storage.commit({
         organization: settings.organization,
         transfer: settings.transfer,
+        finalization: settings.finalization ?? { ...DEFAULT_FINALIZATION },
         maxConcurrentDownloads: settings.maxConcurrentDownloads,
       });
     });

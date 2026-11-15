@@ -3,6 +3,9 @@ package com.ynixt.dmdl.resource.gateway.files
 import com.ynixt.dmdl.domain.gateway.FileFinalizer
 import com.ynixt.dmdl.domain.model.DownloadRequest
 import com.ynixt.dmdl.domain.model.DownloadState
+import com.ynixt.dmdl.domain.model.FinalizationChecks
+import com.ynixt.dmdl.domain.model.FinalizationProgress
+import com.ynixt.dmdl.domain.model.FinalizationStep
 import com.ynixt.dmdl.domain.model.OrganizationRenderer
 import com.ynixt.dmdl.domain.model.PlacementState
 import org.springframework.stereotype.Component
@@ -21,7 +24,10 @@ import java.util.UUID
 
 /** Transfer/resumption belongs to aria2; this adapter owns only validated final placement. */
 @Component
-class ValidatedFileFinalizer : FileFinalizer {
+class ValidatedFileFinalizer(
+    /** Called each time a file is actually read to compute its hash; lets tests count reads. */
+    private val hashReads: (Path) -> Unit = {},
+) : FileFinalizer {
     private val renderer = OrganizationRenderer()
 
     override fun checkStorage(root: String) {
@@ -43,9 +49,12 @@ class ValidatedFileFinalizer : FileFinalizer {
 
     override fun finalize(
         request: DownloadRequest,
+        checks: FinalizationChecks,
+        onProgress: (FinalizationProgress) -> Unit,
         saveCheckpoint: (DownloadRequest) -> Unit,
     ): DownloadRequest {
         var current = request
+        val hashes = HashCache(onProgress)
         val root = Path.of(request.organization.storageRoot).toAbsolutePath().normalize()
         val stagingRoot = Path.of(request.organization.stagingRoot).toAbsolutePath().normalize()
         require(
@@ -66,8 +75,10 @@ class ValidatedFileFinalizer : FileFinalizer {
             renderer.validateParents(root, target)
             val witness = witness(request, root)
             if (Files.exists(target, NOFOLLOW_LINKS)) {
-                require(owns(target, witness, request)) { "Destination conflict: existing output is not owned by this request" }
-                return placed(request).also(saveCheckpoint)
+                val placedHash = placedHash(target, witness, request.execution.outputSize, checks, request.execution.outputSha256, hashes)
+                require(placedHash != null) { "Destination conflict: existing output is not owned by this request" }
+                onProgress(FinalizationProgress(FinalizationStep.PLACING))
+                return placed(request, request.execution.outputSha256 ?: placedHash.takeIf(String::isNotEmpty)).also(saveCheckpoint)
             }
         }
         require(regular(source)) { "Completed transfer output is missing or invalid" }
@@ -90,9 +101,17 @@ class ValidatedFileFinalizer : FileFinalizer {
         require(!Files.exists(target, NOFOLLOW_LINKS)) { "Destination conflict: existing file preserved" }
         Files.createDirectories(target.parent)
         renderer.validateParents(root, target)
-        val hash = sha256(source)
+        val sameStore = Files.getFileStore(source) == Files.getFileStore(target.parent)
+        // On one filesystem the downloaded file becomes the final file through hard links, so one read covers every check.
+        val sourceHash =
+            if (sameStore &&
+                checks.hashDownloadedFile
+            ) {
+                hashes.of(source, FinalizationStep.HASHING_DOWNLOAD, expected)
+            } else {
+                null
+            }
         if (current.execution.placement == PlacementState.NONE) {
-            val sameStore = Files.getFileStore(source) == Files.getFileStore(target.parent)
             val token = if (sameStore) null else UUID.randomUUID().toString()
             val temporary =
                 if (sameStore) {
@@ -108,6 +127,7 @@ class ValidatedFileFinalizer : FileFinalizer {
                 } else {
                     exclusiveLink(temporary, source)
                 }
+                onProgress(FinalizationProgress(FinalizationStep.FLUSHING))
                 force(source)
             }
             current =
@@ -118,7 +138,7 @@ class ValidatedFileFinalizer : FileFinalizer {
                         request.execution.copy(
                             finalPath = target.toString(),
                             outputSize = expected,
-                            outputSha256 = hash,
+                            outputSha256 = sourceHash,
                             placementTemporaryPath = temporary.toString(),
                             placementOwnershipToken = token,
                             placement = PlacementState.PLANNED,
@@ -126,39 +146,45 @@ class ValidatedFileFinalizer : FileFinalizer {
                 )
             saveCheckpoint(current)
         }
-        require(hash == current.execution.outputSha256 && expected == current.execution.outputSize) {
+        val recorded = current.execution.outputSha256
+        require(expected == current.execution.outputSize && (sourceHash == null || recorded == null || sourceHash == recorded)) {
             "Staging output changed after finalization was planned"
         }
+        var reference = sourceHash ?: recorded
         val temporary = witness(current, root)
         if (current.execution.placementOwnershipToken != null) {
             validateMarker(current, temporary)
-            // Only the marker-owned private directory may contain an interrupted copy.
-            if (!regular(temporary) || Files.size(temporary) != expected || sha256(temporary) != hash) {
-                require(!Files.isSymbolicLink(temporary)) { "Invalid placement temporary file" }
-                Files.newInputStream(source).use { input ->
-                    Files
-                        .newOutputStream(
-                            temporary,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.TRUNCATE_EXISTING,
-                            StandardOpenOption.WRITE,
-                        ).use(input::copyTo)
+            require(!Files.isSymbolicLink(temporary)) { "Invalid placement temporary file" }
+            // Only the marker-owned private directory may contain an interrupted copy, and it is never trusted: rewrite it.
+            val needsHash = checks.hashDownloadedFile || checks.verifyCopy || checks.verifyPlacedFile
+            val copiedHash = copy(source, temporary, expected, needsHash, onProgress)
+            onProgress(FinalizationProgress(FinalizationStep.FLUSHING))
+            force(temporary)
+            if (copiedHash != null) {
+                require(recorded == null || copiedHash == recorded) { "Staging output changed after finalization was planned" }
+                hashes.remember(source, copiedHash)
+                reference = copiedHash
+            }
+            if (checks.verifyCopy) {
+                require(hashes.of(temporary, FinalizationStep.VERIFYING_COPY, expected) == reference) {
+                    "Placement copy failed verification; staging preserved"
                 }
-                force(temporary)
             }
         } else {
             require(
                 regular(temporary) && Files.isSameFile(source, temporary),
             ) { "Placement witness is missing or does not belong to staging" }
         }
-        require(regular(temporary) && Files.size(temporary) == expected && sha256(temporary) == hash) {
+        require(regular(temporary) && Files.size(temporary) == expected) {
             "Placement copy failed verification; staging preserved"
         }
         renderer.validateParents(root, target)
+        onProgress(FinalizationProgress(FinalizationStep.PLACING))
         exclusiveLink(target, temporary)
-        require(owns(target, temporary, current)) { "Placed output failed identity verification" }
+        val placedHash = placedHash(target, temporary, expected, checks, reference, hashes)
+        require(placedHash != null) { "Placed output failed identity verification" }
         // Keep the witness until COMPLETED and notification bookkeeping commit together.
-        return placed(current).also(saveCheckpoint)
+        return placed(current, reference ?: placedHash.takeIf(String::isNotEmpty)).also(saveCheckpoint)
     }
 
     override fun cleanupCompleted(request: DownloadRequest) {
@@ -168,15 +194,13 @@ class ValidatedFileFinalizer : FileFinalizer {
         if (!Files.exists(temporary, NOFOLLOW_LINKS)) return
         val target = Path.of(requireNotNull(request.execution.finalPath))
         renderer.validateParents(root, target)
-        require(owns(target, temporary, request)) { "Completed output identity changed; cleanup refused" }
+        require(sameFile(target, temporary, request.execution.outputSize)) { "Completed output identity changed; cleanup refused" }
         val source = Path.of(requireNotNull(request.execution.stagingPath)).toAbsolutePath().normalize()
         val stagingRoot = Path.of(request.organization.stagingRoot).toAbsolutePath().normalize()
         require(source.startsWith(stagingRoot.resolve(request.id.toString())))
         renderer.validateParents(stagingRoot, source)
         if (Files.exists(source, NOFOLLOW_LINKS)) {
-            require(
-                regular(source) && Files.size(source) == request.execution.outputSize && sha256(source) == request.execution.outputSha256,
-            )
+            require(regular(source) && Files.size(source) == request.execution.outputSize)
             Files.delete(source)
         }
         Files.delete(temporary)
@@ -224,7 +248,7 @@ class ValidatedFileFinalizer : FileFinalizer {
                     return@let
                 }
                 val verified = witness(request, root)
-                if (owns(target, verified, request)) Files.delete(target)
+                if (sameFile(target, verified, request.execution.outputSize)) Files.delete(target)
                 if (request.execution.placementOwnershipToken != null) {
                     Files.deleteIfExists(verified)
                     Files.deleteIfExists(verified.parent.resolve(".owner"))
@@ -323,20 +347,40 @@ class ValidatedFileFinalizer : FileFinalizer {
         }
     }
 
-    private fun placed(request: DownloadRequest) =
-        request.copy(updatedAt = Instant.now(), execution = request.execution.copy(placement = PlacementState.PLACED))
+    private fun placed(
+        request: DownloadRequest,
+        hash: String?,
+    ) = request.copy(
+        updatedAt = Instant.now(),
+        execution = request.execution.copy(placement = PlacementState.PLACED, outputSha256 = hash),
+    )
 
     private fun regular(path: Path) = Files.isRegularFile(path, NOFOLLOW_LINKS) && !Files.isSymbolicLink(path)
 
-    private fun owns(
+    /** The final file is ours when it is a hard link of the witness with the expected size. */
+    private fun sameFile(
         target: Path,
         witness: Path,
-        request: DownloadRequest,
-    ) = regular(target) &&
-        regular(witness) &&
-        Files.isSameFile(target, witness) &&
-        Files.size(target) == request.execution.outputSize &&
-        sha256(target) == request.execution.outputSha256
+        size: Long?,
+    ) = regular(target) && regular(witness) && Files.isSameFile(target, witness) && Files.size(target) == size
+
+    /**
+     * Proves ownership of the final file and, when the final-file check is on, compares its hash with [reference].
+     * Returns null when it is not ours, its hash (from the cache when that file was already read), or "" when unchecked.
+     */
+    private fun placedHash(
+        target: Path,
+        witness: Path,
+        size: Long?,
+        checks: FinalizationChecks,
+        reference: String?,
+        hashes: HashCache,
+    ): String? {
+        if (!sameFile(target, witness, size)) return null
+        if (!checks.verifyPlacedFile) return ""
+        val hash = hashes.of(target, FinalizationStep.VERIFYING_PLACED_FILE, requireNotNull(size))
+        return hash.takeIf { reference == null || it == reference }
+    }
 
     private fun exclusiveLink(
         target: Path,
@@ -367,22 +411,95 @@ class ValidatedFileFinalizer : FileFinalizer {
         FileChannel.open(path, StandardOpenOption.WRITE).use { it.force(true) }
     }
 
-    private fun sha256(path: Path): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        Files.newInputStream(path).use { input ->
-            val buffer = ByteArray(1024 * 1024)
-            while (true) {
-                val size = input.read(buffer)
-                if (size <
-                    0
-                ) {
-                    break
+    /** Copies [source] into [target], hashing the bytes as they stream through when [hashing] is set. */
+    private fun copy(
+        source: Path,
+        target: Path,
+        size: Long,
+        hashing: Boolean,
+        onProgress: (FinalizationProgress) -> Unit,
+    ): String? {
+        val digest = if (hashing) MessageDigest.getInstance("SHA-256") else null
+        val report = ThrottledProgress(FinalizationStep.COPYING, size, onProgress)
+        Files.newInputStream(source).use { input ->
+            val options = arrayOf(StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+            Files.newOutputStream(target, *options).use { output ->
+                val buffer = ByteArray(BUFFER_SIZE)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    digest?.update(buffer, 0, read)
+                    output.write(buffer, 0, read)
+                    report.add(read)
                 }
-                digest.update(buffer, 0, size)
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+        report.finish()
+        return digest?.let(::hex)
     }
+
+    /** SHA-256 per physical file for one finalization: hard links of an already hashed file are never read again. */
+    private inner class HashCache(
+        private val onProgress: (FinalizationProgress) -> Unit,
+    ) {
+        private val known = mutableListOf<Pair<Path, String>>()
+
+        fun of(
+            path: Path,
+            step: FinalizationStep,
+            size: Long,
+        ): String {
+            known.firstOrNull { (file, _) -> Files.isSameFile(file, path) }?.let { return it.second }
+            hashReads(path)
+            val digest = MessageDigest.getInstance("SHA-256")
+            val report = ThrottledProgress(step, size, onProgress)
+            Files.newInputStream(path).use { input ->
+                val buffer = ByteArray(BUFFER_SIZE)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    digest.update(buffer, 0, read)
+                    report.add(read)
+                }
+            }
+            report.finish()
+            return hex(digest).also { remember(path, it) }
+        }
+
+        fun remember(
+            path: Path,
+            hash: String,
+        ) {
+            known += path to hash
+        }
+    }
+
+    /** Reports byte progress at most every 500 ms, plus the start and the end of the step. */
+    private class ThrottledProgress(
+        private val step: FinalizationStep,
+        private val total: Long,
+        private val onProgress: (FinalizationProgress) -> Unit,
+    ) {
+        private var processed = 0L
+        private var reportedAt = System.nanoTime()
+
+        init {
+            onProgress(FinalizationProgress(step, 0, total))
+        }
+
+        fun add(bytes: Int) {
+            processed += bytes
+            val now = System.nanoTime()
+            if (now - reportedAt >= REPORT_INTERVAL_NANOS) {
+                reportedAt = now
+                onProgress(FinalizationProgress(step, processed, total))
+            }
+        }
+
+        fun finish() = onProgress(FinalizationProgress(step, processed, total))
+    }
+
+    private fun hex(digest: MessageDigest) = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
 
     private fun actualExtension(path: Path): String {
         val header = Files.newInputStream(path).use { it.readNBytes(512) }
@@ -417,5 +534,10 @@ class ValidatedFileFinalizer : FileFinalizer {
                 throw IllegalArgumentException("Output is not a recognized media container; staging file preserved")
             }
         }
+    }
+
+    private companion object {
+        const val BUFFER_SIZE = 1024 * 1024
+        const val REPORT_INTERVAL_NANOS = 500_000_000L
     }
 }

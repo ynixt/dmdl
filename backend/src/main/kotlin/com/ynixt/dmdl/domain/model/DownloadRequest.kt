@@ -213,6 +213,8 @@ data class DownloadProgress(
     val diskBytesPerSecond: Long? = null,
     /** Container-wide page-cache bytes waiting to be written to disk. */
     val pendingWriteBytes: Long? = null,
+    /** Step and progress while the download is finalizing. */
+    val finalization: FinalizationProgress? = null,
 )
 
 data class DownloadRequest(
