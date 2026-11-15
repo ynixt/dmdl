@@ -1,0 +1,113 @@
+name: Bug report
+description: Something in dmdl does not work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please search the [existing issues](https://github.com/ynixt/dmdl/issues) first.
+
+        **Never paste secrets.** Addon manifest URLs, debrid links, API keys, tokens and passwords must be removed or replaced with `REDACTED` before you submit. Security problems go through [SECURITY.md](https://github.com/ynixt/dmdl/blob/master/SECURITY.md), not here.
+
+  - type: input
+    id: version
+    attributes:
+      label: dmdl version
+      description: Shown in the navbar, for example `0.0.9`, or the image tag you run (`latest`, `edge`, `sha-…`).
+      placeholder: 0.0.9
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How do you run dmdl?
+      options:
+        - Example compose.yaml from the README
+        - Customized Docker Compose / docker run
+        - Built from source (make up / bootRun)
+        - Other (explain below)
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Host
+      description: Operating system, CPU architecture and where the media folder lives (local disk, NAS, network share…).
+      placeholder: Ubuntu 24.04, amd64, media on a local HDD
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Setup wizard / login
+        - Search and metadata
+        - Releases / stream addons
+        - Downloads (aria2, speed, pause/resume)
+        - Finalization / file organization
+        - Webhooks
+        - Settings
+        - Logs
+        - Docker image / Redis
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. Screenshots are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: input
+    id: addons
+    attributes:
+      label: Addons and debrid service
+      description: Names only, never URLs. For example "AIOMetadata, AIOStreams with TorBox".
+      placeholder: Cinemeta, Torrentio with Real-Debrid
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: From the **Logs** page or `docker compose logs dmdl`. Remove URLs, tokens and keys first. This field is rendered as code automatically.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I removed addon URLs, debrid links, tokens and passwords from everything above.
+          required: true

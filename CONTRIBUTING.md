@@ -5,6 +5,7 @@ Thanks for helping! Bug reports, ideas and pull requests are all welcome.
 ## Reporting bugs and ideas
 
 - Search the existing issues first.
+- Open a [new issue](https://github.com/ynixt/dmdl/issues/new/choose) and pick the **Bug report** or **Feature request** form; it asks for everything needed to act on it.
 - For a bug, include the dmdl version (shown in the navbar), how you run it and the relevant part of the logs (**Logs** page or `docker compose logs dmdl`). Remove addon URLs, debrid links, tokens and passwords before posting.
 - Security problems go through [SECURITY.md](SECURITY.md), never a public issue.
 

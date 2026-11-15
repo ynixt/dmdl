@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest an idea or an improvement for dmdl.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Please search the [existing issues](https://github.com/ynixt/dmdl/issues) first; if someone already asked for it, add a 👍 there instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you are trying to do and what gets in the way today.
+      placeholder: When I download a whole season I have to …
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working. Mockups or examples from other apps help.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Workarounds you use today or other ways to solve it.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Would you like to work on it?
+      options:
+        - "No"
+        - Yes, I can open a pull request
+        - Maybe, with some guidance
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+    validations:
+      required: false
