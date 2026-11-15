@@ -23,11 +23,13 @@ class DownloadSpeedHistory(
         runCatching {
             val entry =
                 json.writeValueAsString(
-                    mapOf(
-                        "at" to sample.at.toEpochMilli(),
-                        "speed" to sample.speedBytesPerSecond,
-                        "connections" to sample.connections,
-                    ),
+                    buildMap {
+                        put("at", sample.at.toEpochMilli())
+                        put("speed", sample.speedBytesPerSecond)
+                        put("connections", sample.connections)
+                        sample.completedBytes?.let { put("completed", it) }
+                        sample.diskBytes?.let { put("disk", it) }
+                    },
                 )
             val list = redis.opsForList()
             list.rightPush(key(id), entry)
@@ -45,6 +47,9 @@ class DownloadSpeedHistory(
                         Instant.ofEpochMilli(node.get("at").asLong()),
                         node.get("speed").asLong(),
                         node.get("connections").asInt(),
+                        // Entries written before cumulative counters existed have neither field.
+                        node.get("completed")?.takeIf { it.isNumber }?.asLong(),
+                        node.get("disk")?.takeIf { it.isNumber }?.asLong(),
                     )
                 }.getOrNull()
             }

@@ -179,6 +179,7 @@ export interface Transfer {
   timeoutSeconds?: number;
   maxFileNotFound?: number;
   maxConcurrentPerDebrid?: number;
+  autoSaveIntervalSeconds?: number;
 }
 export interface Settings {
   username: string;
@@ -211,12 +212,22 @@ export interface Download {
     totalBytes?: number;
     speedBytesPerSecond: number;
     connections?: number | null;
-    connectionSpeedsBytesPerSecond?: number[] | null;
     allocation?: {
       allocatedBytes: number;
       totalBytes: number;
       secondsRemaining?: number | null;
     } | null;
+    /** aria2's own reported speed; speedBytesPerSecond is the observed 10 s speed. */
+    aria2SpeedBytesPerSecond?: number | null;
+    /** Observed speed over the last 60 s, used for the remaining time. */
+    averageBytesPerSecond?: number | null;
+    aria2AnsweredAt?: string | null;
+    phase?: TransferPhase | null;
+    diskActivity?: DiskActivityAvailability | null;
+    /** Container-wide bytes per second written to the staging disk. */
+    diskBytesPerSecond?: number | null;
+    /** Container-wide page-cache bytes waiting to be written to disk. */
+    pendingWriteBytes?: number | null;
   };
   execution: {
     generation: number;
@@ -241,6 +252,21 @@ export interface SpeedSample {
   at: string;
   speedBytesPerSecond: number;
   connections: number;
+  /** Cumulative completed bytes; absent in samples recorded before it existed. */
+  completedBytes?: number | null;
+  /** Cumulative container bytes written to the staging disk. */
+  diskBytes?: number | null;
+}
+export type TransferPhase =
+  'TRANSFERRING' | 'WAITING_FOR_ARIA2' | 'WRITING_TO_DISK' | 'ARIA2_RESTARTING';
+export type DiskActivityAvailability = 'AVAILABLE' | 'CGROUP_V2_MISSING' | 'NO_BLOCK_STATS';
+export type Aria2RestartState = 'IDLE' | 'RESTARTING' | 'FAILED';
+export interface Aria2Status {
+  restartState: Aria2RestartState;
+  restartStartedAt?: string | null;
+  runningAutoSaveIntervalSeconds?: number | null;
+  savedAutoSaveIntervalSeconds: number;
+  restartPending: boolean;
 }
 export interface Setup {
   missing: string[];

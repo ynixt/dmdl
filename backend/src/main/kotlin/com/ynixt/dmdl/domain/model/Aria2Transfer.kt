@@ -28,6 +28,8 @@ data class Aria2TransferOptions(
     val timeoutSeconds: Int = 60,
     val maxFileNotFound: Int = 2,
     val maxConcurrentPerDebrid: Int = 1,
+    /** aria2 `auto-save-interval`; aria2 only reads it at startup. */
+    val autoSaveIntervalSeconds: Int = 60,
 )
 
 data class Aria2TransferFile(

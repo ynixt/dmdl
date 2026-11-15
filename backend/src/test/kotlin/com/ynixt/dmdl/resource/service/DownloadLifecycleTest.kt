@@ -4,6 +4,7 @@ import com.ynixt.dmdl.application.config.Aria2Properties
 import com.ynixt.dmdl.application.config.StorageProperties
 import com.ynixt.dmdl.domain.enum.Aria2FileAllocation
 import com.ynixt.dmdl.domain.gateway.Aria2Gateway
+import com.ynixt.dmdl.domain.gateway.DiskActivitySource
 import com.ynixt.dmdl.domain.model.ApplicationSettings
 import com.ynixt.dmdl.domain.model.Aria2TransferFile
 import com.ynixt.dmdl.domain.model.Aria2TransferOptions
@@ -12,6 +13,8 @@ import com.ynixt.dmdl.domain.model.Aria2TransferStatus
 import com.ynixt.dmdl.domain.model.ContentIdentity
 import com.ynixt.dmdl.domain.model.ContentSnapshot
 import com.ynixt.dmdl.domain.model.DebridProvider
+import com.ynixt.dmdl.domain.model.DiskActivity
+import com.ynixt.dmdl.domain.model.DiskActivityAvailability
 import com.ynixt.dmdl.domain.model.DownloadControl
 import com.ynixt.dmdl.domain.model.DownloadExecution
 import com.ynixt.dmdl.domain.model.DownloadProgress
@@ -26,8 +29,10 @@ import com.ynixt.dmdl.domain.model.ReleaseReference
 import com.ynixt.dmdl.domain.model.ReleaseReferenceType
 import com.ynixt.dmdl.domain.model.ReleaseSnapshot
 import com.ynixt.dmdl.domain.model.SpeedSample
+import com.ynixt.dmdl.domain.model.TransferPhase
 import com.ynixt.dmdl.domain.repository.ConfigurationStore
 import com.ynixt.dmdl.domain.repository.DownloadStore
+import com.ynixt.dmdl.domain.service.Aria2LifecycleService
 import com.ynixt.dmdl.resource.cache.DownloadSpeedHistory
 import com.ynixt.dmdl.resource.cache.LiveDownloadProgress
 import com.ynixt.dmdl.resource.gateway.files.ValidatedFileFinalizer
@@ -60,6 +65,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+
+private const val MB = 1_000_000L
 
 class DownloadLifecycleTest {
     @TempDir lateinit var root: Path
@@ -157,20 +164,44 @@ class DownloadLifecycleTest {
         service = service(Aria2Properties())
     }
 
-    private fun service(properties: Aria2Properties) =
-        DownloadServiceImpl(
-            store,
-            configuration,
-            mockk(),
-            aria,
-            finalizer,
-            mockk(relaxed = true),
-            progress,
-            speedHistory,
-            StorageProperties(root.toString()),
-            properties,
-            clock = clock,
-        )
+    private fun service(
+        properties: Aria2Properties,
+        disk: DiskActivitySource? = null,
+        lifecycle: Aria2LifecycleService? = null,
+    ) = DownloadServiceImpl(
+        store,
+        configuration,
+        mockk(),
+        aria,
+        finalizer,
+        mockk(relaxed = true),
+        progress,
+        speedHistory,
+        StorageProperties(root.toString()),
+        properties,
+        clock = clock,
+        diskActivity = disk,
+        lifecycle = lifecycle,
+    )
+
+    private val fastPoll = Aria2Properties(pollInterval = Duration.ofMillis(100))
+
+    /** aria2 answers with [bytes] completed, advancing the clock one second per answer. */
+    private fun growing(
+        id: UUID,
+        bytes: Long,
+    ): Aria2TransferStatus {
+        clock.advance(Duration.ofSeconds(1))
+        return transferStatus(id).copy(completedLength = bytes, totalLength = 100L * MB, downloadSpeed = 250L * MB)
+    }
+
+    /** Blocks the status call while [seconds] of clock time pass in steps the loop can observe. */
+    private fun stall(seconds: Int) {
+        repeat(seconds) {
+            clock.advance(Duration.ofSeconds(1))
+            Thread.sleep(25)
+        }
+    }
 
     private class MutableClock(
         start: Instant,
@@ -251,8 +282,264 @@ class DownloadLifecycleTest {
         assertEquals(DownloadState.FAILED, current.get().state)
         assertEquals(3, samples.size)
         assertEquals(listOf(30_000L, 60_000L, 90_000L), samples.map { it.at.toEpochMilli() - loopStart.get() })
-        assertTrue(samples.all { it.speedBytesPerSecond == 512L && it.connections == 8 })
+        // aria2 reports 512 B/s but completed bytes never grow, so the observed speed is 0.
+        assertTrue(samples.all { it.speedBytesPerSecond == 0L && it.connections == 8 && it.completedBytes == 1024L })
         verify(exactly = 0) { speedHistory.delete(any()) }
+    }
+
+    @Test
+    fun `a frozen aria2 keeps progress flowing with a waiting phase and a decaying speed`() {
+        val request = current.get()
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            when (val call = calls.incrementAndGet()) {
+                in 1L..6L -> {
+                    growing(request.id, call * 10 * MB)
+                }
+
+                7L -> {
+                    stall(30)
+                    // aria2 comes back reporting a catch-up burst of 250 MB/s.
+                    growing(request.id, 60 * MB)
+                }
+
+                else -> {
+                    transferStatus(request.id, Aria2TransferState.ERROR)
+                }
+            }
+        }
+        val published = mutableListOf<DownloadProgress>()
+        every { progress.publish(any(), any(), capture(published)) } just Runs
+        service(fastPoll).execute(DownloadWakeUp(request.id, 1))
+
+        val waiting = published.filter { it.phase == TransferPhase.WAITING_FOR_ARIA2 }
+        assertTrue(waiting.size >= 3, "progress keeps being published while aria2 is frozen")
+        assertEquals(0, waiting.last().speedBytesPerSecond)
+        val afterFreeze = published.last { it.phase == TransferPhase.TRANSFERRING && it.completedBytes == 60 * MB }
+        assertEquals(0, afterFreeze.speedBytesPerSecond)
+        assertEquals(250 * MB, afterFreeze.aria2SpeedBytesPerSecond)
+        assertEquals("KZ.ARIA2_NETWORK_FAILED", current.get().error)
+    }
+
+    @Test
+    fun `aria2 unavailable for over 110 seconds fails the transfer`() {
+        val request = current.get()
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            if (calls.incrementAndGet() <= 2) {
+                growing(request.id, 10 * MB)
+            } else {
+                clock.advance(Duration.ofSeconds(15))
+                throw java.io.IOException("connection refused")
+            }
+        }
+        service(fastPoll).execute(DownloadWakeUp(request.id, 1))
+        assertEquals(DownloadState.FAILED, current.get().state)
+        assertEquals("aria2 is unavailable; check the daemon and retry this request", current.get().error)
+    }
+
+    @Test
+    fun `aria2 unavailable for 60 seconds does not fail the transfer`() {
+        val request = current.get()
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            when (calls.incrementAndGet()) {
+                1L, 2L -> {
+                    growing(request.id, 10 * MB)
+                }
+
+                in 3L..6L -> {
+                    clock.advance(Duration.ofSeconds(15))
+                    throw java.io.IOException("connection refused")
+                }
+
+                else -> {
+                    transferStatus(request.id, Aria2TransferState.ERROR)
+                }
+            }
+        }
+        service(fastPoll).execute(DownloadWakeUp(request.id, 1))
+        assertEquals("KZ.ARIA2_NETWORK_FAILED", current.get().error)
+    }
+
+    @Test
+    fun `an aria2 restart shows a restarting phase and pauses the unavailability clock`() {
+        val request = current.get()
+        val restarting = AtomicBoolean(false)
+        val lifecycle = mockk<Aria2LifecycleService>()
+        every { lifecycle.restarting() } answers { restarting.get() }
+        every { lifecycle.restarts() } returns 0
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            when (calls.incrementAndGet()) {
+                1L, 2L -> {
+                    growing(request.id, 10 * MB)
+                }
+
+                in 3L..9L -> {
+                    restarting.set(true)
+                    clock.advance(Duration.ofSeconds(30))
+                    throw java.io.IOException("connection refused")
+                }
+
+                10L -> {
+                    restarting.set(false)
+                    growing(request.id, 20 * MB)
+                }
+
+                else -> {
+                    transferStatus(request.id, Aria2TransferState.ERROR)
+                }
+            }
+        }
+        val published = mutableListOf<DownloadProgress>()
+        every { progress.publish(any(), any(), capture(published)) } just Runs
+        service(fastPoll, lifecycle = lifecycle).execute(DownloadWakeUp(request.id, 1))
+        assertTrue(published.any { it.phase == TransferPhase.ARIA2_RESTARTING })
+        assertTrue(published.any { it.completedBytes == 20 * MB }, "the transfer resumes after the restart")
+        assertEquals("KZ.ARIA2_NETWORK_FAILED", current.get().error)
+    }
+
+    @Test
+    fun `a restarted aria2 reporting no size and zero bytes keeps the known progress and causes no spike`() {
+        val request = current.get()
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            when (val call = calls.incrementAndGet()) {
+                in 1L..6L -> {
+                    growing(request.id, 70_000 * MB + call * 30 * MB)
+                }
+
+                // Restored from the session but not yet reconnected: unknown size, nothing completed.
+                in 7L..20L -> {
+                    clock.advance(Duration.ofSeconds(1))
+                    transferStatus(request.id).copy(totalLength = 0, completedLength = 0, downloadSpeed = 0)
+                }
+
+                in 21L..26L -> {
+                    growing(request.id, 70_180 * MB + (call - 20) * 30 * MB)
+                }
+
+                else -> {
+                    transferStatus(request.id, Aria2TransferState.ERROR)
+                }
+            }
+        }
+        val published = mutableListOf<DownloadProgress>()
+        every { progress.publish(any(), any(), capture(published)) } just Runs
+        service(fastPoll).execute(DownloadWakeUp(request.id, 1))
+
+        val beforeError = published.dropLast(1)
+        assertTrue(beforeError.none { it.completedBytes == 0L }, "the progress bar never drops to zero")
+        val reload = beforeError.indexOfFirst { it.phase == TransferPhase.WAITING_FOR_ARIA2 }
+        assertTrue(reload > 0, "the reload shows the waiting phase")
+        val afterReload = beforeError.drop(reload)
+        assertTrue(afterReload.all { it.speedBytesPerSecond <= 30 * MB }, "no speed spike after the reload")
+        assertTrue(afterReload.all { (it.averageBytesPerSecond ?: 0) <= 30 * MB }, "no average spike after the reload")
+    }
+
+    @Test
+    fun `resuming a paused download keeps its stored progress while aria2 reloads and causes no spike`() {
+        val request = current.get()
+        // Progress stored when the download was paused.
+        current.set(request.copy(progress = DownloadProgress(6_710 * MB, 86_500 * MB, 0)))
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            when (val call = calls.incrementAndGet()) {
+                in 1L..4L -> {
+                    clock.advance(Duration.ofSeconds(1))
+                    transferStatus(request.id).copy(totalLength = 0, completedLength = 0, downloadSpeed = 0)
+                }
+
+                in 5L..12L -> {
+                    growing(request.id, 6_780 * MB + (call - 5) * 35 * MB).copy(totalLength = 86_500 * MB)
+                }
+
+                else -> {
+                    transferStatus(request.id, Aria2TransferState.ERROR)
+                }
+            }
+        }
+        val published = mutableListOf<DownloadProgress>()
+        every { progress.publish(any(), any(), capture(published)) } just Runs
+        service(fastPoll).execute(DownloadWakeUp(request.id, 1))
+
+        val beforeError = published.dropLast(1)
+        assertTrue(beforeError.none { it.completedBytes == 0L }, "the stored progress is shown while aria2 reloads")
+        assertEquals(TransferPhase.WAITING_FOR_ARIA2, beforeError.first().phase)
+        assertTrue(beforeError.all { it.speedBytesPerSecond <= 250 * MB }, "no speed spike from a zero baseline")
+        assertTrue(beforeError.all { (it.averageBytesPerSecond ?: 0) <= 250 * MB }, "no average spike from a zero baseline")
+        val measured = beforeError.filter { it.phase == TransferPhase.TRANSFERRING && (it.aria2SpeedBytesPerSecond ?: 0) > 0 }
+        assertTrue(measured.last().averageBytesPerSecond!! <= 35 * MB)
+    }
+
+    @Test
+    fun `a slow database checkpoint does not stop live progress and never overwrites a newer state`() {
+        val request = current.get()
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            when (val call = calls.incrementAndGet()) {
+                in 1L..20L -> growing(request.id, call * 10 * MB)
+                else -> transferStatus(request.id, Aria2TransferState.ERROR)
+            }
+        }
+        val slowWrites = AtomicLong(0)
+        every { store.checkpoint(any()) } answers {
+            val updated = firstArg<DownloadRequest>()
+            // Progress checkpoints hit a disk busy flushing the download: each takes over a second.
+            if (updated.state == DownloadState.TRANSFERRING && updated.progress.completedBytes > 0) {
+                slowWrites.incrementAndGet()
+                Thread.sleep(1200)
+            }
+            val before = current.get()
+            before.state.reservesCapacity && before.execution.generation == updated.execution.generation &&
+                current.compareAndSet(before, updated)
+        }
+        val publishedAt = mutableListOf<Long>()
+        every { progress.publish(any(), any(), any()) } answers { publishedAt += System.nanoTime() }
+        service(fastPoll).execute(DownloadWakeUp(request.id, 1))
+
+        assertTrue(slowWrites.get() >= 1)
+        val longestGapMillis = publishedAt.zipWithNext { a, b -> (b - a) / 1_000_000 }.max()
+        assertTrue(longestGapMillis < 1000, "progress kept flowing during slow checkpoints (longest gap $longestGapMillis ms)")
+        assertEquals(DownloadState.FAILED, current.get().state)
+        assertEquals("KZ.ARIA2_NETWORK_FAILED", current.get().error)
+    }
+
+    @Test
+    fun `a freeze with pending disk writes shows the writing to disk phase`() {
+        val request = current.get()
+        val written = AtomicLong(0)
+        val disk =
+            object : DiskActivitySource {
+                override fun read(stagingRoot: Path) =
+                    DiskActivity(DiskActivityAvailability.AVAILABLE, written.addAndGet(40 * MB), 400L * 1024 * 1024)
+            }
+        val calls = AtomicLong(0)
+        every { aria.findStatus(any()) } answers {
+            when (val call = calls.incrementAndGet()) {
+                in 1L..4L -> {
+                    growing(request.id, call * 10 * MB)
+                }
+
+                5L -> {
+                    stall(12)
+                    growing(request.id, 40 * MB)
+                }
+
+                else -> {
+                    transferStatus(request.id, Aria2TransferState.ERROR)
+                }
+            }
+        }
+        val published = mutableListOf<DownloadProgress>()
+        every { progress.publish(any(), any(), capture(published)) } just Runs
+        service(fastPoll, disk = disk).execute(DownloadWakeUp(request.id, 1))
+        val writing = published.filter { it.phase == TransferPhase.WRITING_TO_DISK }
+        assertTrue(writing.isNotEmpty())
+        assertEquals(400L * 1024 * 1024, writing.first().pendingWriteBytes)
+        assertTrue(published.all { it.diskActivity == DiskActivityAvailability.AVAILABLE })
+        assertTrue(published.any { (it.diskBytesPerSecond ?: 0) > 0 })
     }
 
     @Test
@@ -285,18 +572,18 @@ class DownloadLifecycleTest {
         val stored =
             current.get().copy(
                 state = DownloadState.TRANSFERRING,
-                progress = DownloadProgress(8, 100, 10, connections = 2, connectionSpeedsBytesPerSecond = listOf(4, 6)),
+                progress = DownloadProgress(8, 100, 10, connections = 2),
             )
         current.set(stored)
         every { progress.find(stored.id, 1) } returns
-            DownloadProgress(64, 100, 40, connections = 3, connectionSpeedsBytesPerSecond = listOf(10, 10, 20))
+            DownloadProgress(64, 100, 40, connections = 3)
         assertEquals(64, service.find(stored.id)!!.progress.completedBytes)
         assertEquals(
-            listOf(10L, 10L, 20L),
+            3,
             service
                 .history()
                 .single()
-                .progress.connectionSpeedsBytesPerSecond,
+                .progress.connections,
         )
         listOf(DownloadState.PAUSED, DownloadState.COMPLETED, DownloadState.CANCELLED, DownloadState.FAILED).forEach { state ->
             current.set(stored.copy(state = state, execution = stored.execution.copy(generation = 2)))
@@ -309,66 +596,32 @@ class DownloadLifecycleTest {
     }
 
     @Test
-    fun `publishes separate connection speeds and preserves progress when optional telemetry fails`() {
-        val initial = current.get()
-        listOf(false, true).forEach { unavailable ->
-            current.set(initial)
-            val active =
-                Aria2TransferStatus(
-                    "abcdef0123456789",
-                    Aria2TransferState.ACTIVE,
-                    1024,
-                    256,
-                    192,
-                    null,
-                    null,
-                    "/downloads/.dmdl/${initial.id}",
-                    emptyList(),
-                    connections = 2,
-                )
-            every { aria.findStatus(any()) } returnsMany
-                listOf(active, active, active.copy(state = Aria2TransferState.ERROR, errorCode = "2"))
-            every { aria.connectionSpeeds(any()) } answers {
-                if (unavailable) throw java.io.IOException("fixture optional telemetry failure")
-                listOf(128L, 64L)
-            }
-            val published = mutableListOf<DownloadProgress>()
-            every { progress.publish(any(), any(), capture(published)) } just Runs
-            service.execute(DownloadWakeUp(initial.id, 1))
-            val live = published.first()
-            assertEquals(256, live.completedBytes)
-            assertEquals(192, live.speedBytesPerSecond)
-            assertEquals(2, live.connections)
-            assertEquals(if (unavailable) null else listOf(128L, 64L), live.connectionSpeedsBytesPerSecond)
-            assertNull(published.last().connections)
-            assertNull(published.last().connectionSpeedsBytesPerSecond)
-            assertEquals("KZ.ARIA2_NETWORK_FAILED", current.get().error)
-        }
-    }
-
-    @Test
-    fun `zero open connections publishes an empty speed list without requesting server statistics`() {
+    fun `publishes the open connection count only while active`() {
         val initial = current.get()
         val active =
             Aria2TransferStatus(
                 "abcdef0123456789",
                 Aria2TransferState.ACTIVE,
                 1024,
-                0,
-                0,
+                256,
+                192,
                 null,
                 null,
-                "",
+                "/downloads/.dmdl/${initial.id}",
                 emptyList(),
-                connections = 0,
+                connections = 2,
             )
-        every { aria.findStatus(any()) } returnsMany listOf(active, active, active.copy(state = Aria2TransferState.ERROR, errorCode = "2"))
+        every { aria.findStatus(any()) } returnsMany
+            listOf(active, active, active.copy(state = Aria2TransferState.ERROR, errorCode = "2"))
         val published = mutableListOf<DownloadProgress>()
         every { progress.publish(any(), any(), capture(published)) } just Runs
         service.execute(DownloadWakeUp(initial.id, 1))
-        assertEquals(0, published.first().connections)
-        assertEquals(emptyList(), published.first().connectionSpeedsBytesPerSecond)
-        verify(exactly = 0) { aria.connectionSpeeds(any()) }
+        val live = published.first()
+        assertEquals(256, live.completedBytes)
+        assertEquals(192, live.speedBytesPerSecond)
+        assertEquals(2, live.connections)
+        assertNull(published.last().connections)
+        assertEquals("KZ.ARIA2_NETWORK_FAILED", current.get().error)
     }
 
     @Test

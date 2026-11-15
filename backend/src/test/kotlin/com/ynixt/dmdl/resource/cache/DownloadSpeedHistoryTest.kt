@@ -62,6 +62,24 @@ class DownloadSpeedHistoryTest {
     }
 
     @Test
+    fun `cumulative counters round-trip and legacy entries without them stay readable`() {
+        val id = UUID.randomUUID()
+        val at = Instant.parse("2026-11-14T22:48:16Z")
+        // Written by the previous version: no cumulative counters.
+        lists["dmdl:speed-history:$id"] = mutableListOf("""{"at":${at.toEpochMilli()},"speed":37907126,"connections":8}""")
+        history.append(id, SpeedSample(at.plusSeconds(30), 0, 8, 49_966_448_640, 1_927_000_000))
+        history.append(id, SpeedSample(at.plusSeconds(60), 1000, 8, 49_966_478_640))
+        assertEquals(
+            listOf(
+                SpeedSample(at, 37907126, 8),
+                SpeedSample(at.plusSeconds(30), 0, 8, 49_966_448_640, 1_927_000_000),
+                SpeedSample(at.plusSeconds(60), 1000, 8, 49_966_478_640, null),
+            ),
+            history.find(id),
+        )
+    }
+
+    @Test
     fun `keeps only the newest 2880 samples`() {
         val id = UUID.randomUUID()
         val start = Instant.parse("2026-11-14T00:00:00Z")

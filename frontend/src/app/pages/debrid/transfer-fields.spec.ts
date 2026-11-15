@@ -105,4 +105,82 @@ describe('Shared aria2 transfer settings', () => {
     expect(settings.transfer).toEqual(before);
     expect((element.querySelector('#transfer-lowest-speed') as HTMLInputElement).value).toBe('120');
   });
+  it('offers the control-file save interval with a default of 60 and a restart notice', async () => {
+    TestBed.configureTestingModule({ providers: [provideTranslateService()] });
+    const settings: Pick<Settings, 'maxConcurrentDownloads' | 'transfer'> = {
+      maxConcurrentDownloads: 1,
+      transfer: {
+        split: 8,
+        maxConnectionPerServer: 8,
+        minSplitSizeMib: 64,
+        maxTries: 5,
+        retryWaitSeconds: 10,
+        fileAllocation: 'FALLOC',
+        ipv6Enabled: true,
+      },
+    };
+    const fixture = TestBed.createComponent(TransferFieldsComponent);
+    fixture.componentRef.setInput('settings', settings);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const element = fixture.nativeElement as HTMLElement;
+    const interval = element.querySelector('#transfer-auto-save') as HTMLInputElement;
+    expect(interval.value).toBe('60');
+    expect(interval.min).toBe('0');
+    expect(interval.max).toBe('600');
+    expect(element.textContent).toContain('KZ.AUTO_SAVE_INTERVAL_RESTART_NOTICE');
+    interval.value = '300';
+    interval.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    expect(settings.transfer.autoSaveIntervalSeconds).toBe(300);
+  });
+
+  it('puts an info tip with an explanation next to every aria2 parameter', async () => {
+    TestBed.configureTestingModule({ providers: [provideTranslateService()] });
+    const settings: Pick<Settings, 'maxConcurrentDownloads' | 'transfer'> = {
+      maxConcurrentDownloads: 2,
+      transfer: {
+        split: 8,
+        maxConnectionPerServer: 8,
+        minSplitSizeMib: 64,
+        maxTries: 5,
+        retryWaitSeconds: 10,
+        fileAllocation: 'FALLOC',
+        ipv6Enabled: true,
+        lowestSpeedLimitEnabled: true,
+      },
+    };
+    const fixture = TestBed.createComponent(TransferFieldsComponent);
+    fixture.componentRef.setInput('settings', settings);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    const explanations = [...element.querySelectorAll('.info-tip-description')].map((tip) =>
+      tip.textContent?.trim(),
+    );
+    expect(new Set(explanations)).toEqual(
+      new Set([
+        'KZ.CONCURRENCY_INFO',
+        'KZ.DEBRID_CONCURRENCY_INFO',
+        'KZ.CONNECTIONS_INFO',
+        'KZ.MIN_SPLIT_INFO',
+        'KZ.LOWEST_SPEED_INFO',
+        'KZ.DISK_CACHE_INFO',
+        'KZ.TIMEOUT_INFO',
+        'KZ.MAX_TRIES_INFO',
+        'KZ.RETRY_WAIT_INFO',
+        'KZ.MAX_FILE_NOT_FOUND_INFO',
+        'KZ.ALLOCATION_INFO',
+        'KZ.IPV6_INFO',
+        'KZ.AUTO_SAVE_INTERVAL_INFO',
+      ]),
+    );
+    // Every labelled input of the transfer settings has an info tip beside its label.
+    const labels = [...element.querySelectorAll('label')];
+    for (const label of labels) {
+      const tip = label.parentElement?.querySelector('app-info-tip');
+      expect(tip, label.textContent ?? '').not.toBeNull();
+    }
+  });
 });

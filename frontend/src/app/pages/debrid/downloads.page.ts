@@ -21,8 +21,13 @@ import {
   DownloadEvent,
   DownloadStatus,
   SpeedSample,
+  TransferPhase,
 } from '../../services/debrid-api.service';
-import { DownloadSpeedChartComponent, SpeedPoint } from './download-speed-chart.component';
+import {
+  DownloadSpeedChartComponent,
+  samplesToPoints,
+  SpeedPoint,
+} from './download-speed-chart.component';
 
 /** Stored samples from the backend plus live points received since the newest one. */
 interface SpeedHistory {
@@ -32,6 +37,8 @@ interface SpeedHistory {
 
 const SPEED_HISTORY_REFRESH_MS = 30_000;
 const MAX_LIVE_TAIL = 2880;
+/** Progress not refreshed for this long is no longer presented as current. */
+export const STALE_PROGRESS_MS = 5000;
 
 @Component({
   selector: 'app-downloads',
@@ -60,6 +67,12 @@ export class DownloadsPage implements OnInit {
   readonly busy = signal(false);
   readonly history = signal<Record<string, DownloadEvent[]>>({});
   readonly cancellingIds = signal<Set<string>>(new Set());
+  /** Local receipt time of the latest download list; the browser clock is never compared with server times. */
+  readonly receivedAt = signal(Date.now());
+  readonly now = signal(Date.now());
+  readonly transferringCount = computed(
+    () => this.items().filter((item) => item.request.state === 'TRANSFERRING').length,
+  );
   readonly speedHistory = signal<Record<string, SpeedHistory>>({});
   readonly speedPoints = computed<Record<string, SpeedPoint[]>>(() =>
     Object.fromEntries(
@@ -72,10 +85,17 @@ export class DownloadsPage implements OnInit {
   constructor() {
     effect(() => {
       const items = this.items();
-      untracked(() => this.syncSpeedHistory(items));
+      untracked(() => {
+        this.receivedAt.set(Date.now());
+        this.syncSpeedHistory(items);
+      });
     });
     const refresh = setInterval(() => void this.refreshSpeedHistory(), SPEED_HISTORY_REFRESH_MS);
-    this.destroy.onDestroy(() => clearInterval(refresh));
+    const tick = setInterval(() => this.now.set(Date.now()), 1000);
+    this.destroy.onDestroy(() => {
+      clearInterval(refresh);
+      clearInterval(tick);
+    });
   }
   async ngOnInit(): Promise<void> {
     await this.reload();
@@ -183,11 +203,6 @@ export class DownloadsPage implements OnInit {
   byteUnit(total: number | undefined): string {
     return (total ?? 0) >= 1_000_000_000 ? 'GB' : 'MiB';
   }
-  connectionRate(bytesPerSecond: number): { value: number; unit: string } {
-    if (bytesPerSecond < 1024) return { value: bytesPerSecond, unit: 'B/s' };
-    if (bytesPerSecond < 1048576) return { value: bytesPerSecond / 1024, unit: 'KiB/s' };
-    return { value: bytesPerSecond / 1048576, unit: 'MiB/s' };
-  }
   preparingTransfer(item: Download): boolean {
     return (
       item.state === 'TRANSFERRING' &&
@@ -196,13 +211,21 @@ export class DownloadsPage implements OnInit {
       item.progress.speedBytesPerSecond === 0
     );
   }
+  /** What a transferring download is doing; stale progress is never shown as transferring. */
+  phase(item: Download): TransferPhase | 'STALE' {
+    if (item.state !== 'TRANSFERRING') return 'TRANSFERRING';
+    if (this.now() - this.receivedAt() > STALE_PROGRESS_MS) return 'STALE';
+    return item.progress.phase ?? 'TRANSFERRING';
+  }
+  pendingMiB(item: Download): number {
+    return Math.round((item.progress.pendingWriteBytes ?? 0) / 1048576);
+  }
+  /** Uses the 60 s observed average so a short freeze changes the estimate gradually. */
   remainingSeconds(item: Download): number | undefined {
     if (item.progress.allocation) return item.progress.allocation.secondsRemaining ?? undefined;
-    if (!item.progress.totalBytes || item.progress.speedBytesPerSecond <= 0) return undefined;
-    return Math.ceil(
-      Math.max(0, item.progress.totalBytes - item.progress.completedBytes) /
-        item.progress.speedBytesPerSecond,
-    );
+    const rate = item.progress.averageBytesPerSecond ?? item.progress.speedBytesPerSecond;
+    if (!item.progress.totalBytes || rate <= 0) return undefined;
+    return Math.ceil(Math.max(0, item.progress.totalBytes - item.progress.completedBytes) / rate);
   }
   duration(seconds: number): string {
     const rounded = Math.max(0, Math.ceil(seconds));
@@ -277,6 +300,9 @@ export class DownloadsPage implements OnInit {
         at: now,
         speedBytesPerSecond: request.progress.allocation ? 0 : request.progress.speedBytesPerSecond,
         connections: request.progress.connections ?? 0,
+        ...(request.progress.diskBytesPerSecond != null
+          ? { diskBytesPerSecond: request.progress.diskBytesPerSecond }
+          : {}),
       };
       next[request.id] = {
         stored: previous?.stored ?? [],
@@ -289,11 +315,7 @@ export class DownloadsPage implements OnInit {
   private async fetchSpeedHistory(id: string): Promise<void> {
     try {
       const samples = await this.api.get<SpeedSample[]>(`/downloads/${id}/speed-history`);
-      const stored = samples.map((sample) => ({
-        at: Date.parse(sample.at),
-        speedBytesPerSecond: sample.speedBytesPerSecond,
-        connections: sample.connections,
-      }));
+      const stored = samplesToPoints(samples);
       const newest = stored.at(-1)?.at ?? Number.NEGATIVE_INFINITY;
       this.speedHistory.update((current) =>
         current[id]

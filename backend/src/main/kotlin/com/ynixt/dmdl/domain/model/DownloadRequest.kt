@@ -180,13 +180,39 @@ data class DownloadExecution(
     val fileAllocationOverride: Aria2FileAllocation? = null,
 )
 
+/** What a transferring download is doing right now; speed is only meaningful in [TRANSFERRING]. */
+enum class TransferPhase {
+    TRANSFERRING,
+    WAITING_FOR_ARIA2,
+    WRITING_TO_DISK,
+    ARIA2_RESTARTING,
+}
+
+enum class DiskActivityAvailability {
+    AVAILABLE,
+    CGROUP_V2_MISSING,
+    NO_BLOCK_STATS,
+}
+
 data class DownloadProgress(
     val completedBytes: Long = 0,
     val totalBytes: Long? = null,
+    /** Observed speed: completed bytes gained over the last 10 s of wall-clock time. */
     val speedBytesPerSecond: Long = 0,
     val allocation: AllocationProgress? = null,
     val connections: Int? = null,
-    val connectionSpeedsBytesPerSecond: List<Long>? = null,
+    /** aria2's own reported speed, kept for diagnostics. */
+    val aria2SpeedBytesPerSecond: Long? = null,
+    /** Observed speed over the last 60 s, used for the remaining time. */
+    val averageBytesPerSecond: Long? = null,
+    /** When aria2 last answered a status request for this transfer. */
+    val aria2AnsweredAt: Instant? = null,
+    val phase: TransferPhase? = null,
+    val diskActivity: DiskActivityAvailability? = null,
+    /** Container-wide bytes per second written to the staging disk. */
+    val diskBytesPerSecond: Long? = null,
+    /** Container-wide page-cache bytes waiting to be written to disk. */
+    val pendingWriteBytes: Long? = null,
 )
 
 data class DownloadRequest(
@@ -211,6 +237,10 @@ data class SpeedSample(
     val at: Instant,
     val speedBytesPerSecond: Long,
     val connections: Int,
+    /** Cumulative completed bytes; absent in samples recorded before this field existed. */
+    val completedBytes: Long? = null,
+    /** Cumulative container bytes written to the staging disk, when disk activity is available. */
+    val diskBytes: Long? = null,
 )
 
 data class DownloadEvent(

@@ -27,6 +27,8 @@ class ConfigurationValidationTest {
             defaults.copy(diskCacheMib = 4097),
             defaults.copy(maxFileNotFound = -1),
             defaults.copy(maxConcurrentPerDebrid = 2),
+            defaults.copy(autoSaveIntervalSeconds = 601),
+            defaults.copy(autoSaveIntervalSeconds = -1),
         ).forEach { invalid ->
             assertFailsWith<IllegalArgumentException> { validation.settings(settings.copy(transfer = invalid), storageCheck = {}) }
         }
@@ -34,6 +36,9 @@ class ConfigurationValidationTest {
             settings.copy(maxConcurrentDownloads = 2, transfer = defaults.copy(maxConcurrentPerDebrid = 2)),
             storageCheck = {},
         )
+        listOf(0, 600).forEach { interval ->
+            validation.settings(settings.copy(transfer = defaults.copy(autoSaveIntervalSeconds = interval)), storageCheck = {})
+        }
     }
 
     @Test

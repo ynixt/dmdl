@@ -92,33 +92,18 @@ describe('Completed download history actions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows current connection count and individual speeds using adaptive units', async () => {
+  it('shows only the open connection count, without per-connection speeds', async () => {
     const item = download('active', 'TRANSFERRING');
     item.request.progress.connections = 4;
-    item.request.progress.connectionSpeedsBytesPerSecond = [512, 1536, 1310719, 0];
     records = [item];
     await render();
     expect(fixture.nativeElement.querySelector('.open-connections').textContent).toContain('4');
-    const rows = [
-      ...fixture.nativeElement.querySelectorAll('.connection-speeds li'),
-    ] as HTMLElement[];
-    expect(rows).toHaveLength(4);
-    expect(rows.map((row) => row.querySelector('strong')?.textContent?.trim())).toEqual([
-      '512 B/s',
-      '1.5 KiB/s',
-      '1.25 MiB/s',
-      '0 B/s',
-    ]);
-    expect(rows[0].textContent).toContain('KZ.CONNECTION 1');
-    expect(rows[3].textContent).toContain('KZ.CONNECTION 4');
+    expect(fixture.nativeElement.querySelector('.connection-speeds')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('KZ.CONNECTION_SPEEDS');
     item.request.progress.connections = 1;
-    item.request.progress.connectionSpeedsBytesPerSecond = [2048];
     await fixture.componentInstance.reload();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelectorAll('.connection-speeds li')).toHaveLength(1);
-    expect(
-      fixture.nativeElement.querySelector('.connection-speeds strong').textContent.trim(),
-    ).toBe('2 KiB/s');
+    expect(fixture.nativeElement.querySelector('.open-connections').textContent).toContain('1');
   });
 
   it('hides missing connection metrics and suppresses stale details outside transferring', async () => {
@@ -127,19 +112,17 @@ describe('Completed download history actions', () => {
     await render();
     expect(fixture.nativeElement.querySelector('.open-connections')).toBeNull();
     item.request.progress.connections = 2;
-    item.request.progress.connectionSpeedsBytesPerSecond = [512, 512];
     for (const state of ['PAUSED', 'COMPLETED', 'CANCELLED', 'FAILED']) {
       item.request.state = state;
       await fixture.componentInstance.reload();
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('.open-connections')).toBeNull();
-      expect(fixture.nativeElement.querySelector('.connection-speeds')).toBeNull();
     }
     item.request.state = 'TRANSFERRING';
     fixture.componentInstance.cancellingIds.set(new Set(['active']));
     await fixture.componentInstance.reload();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.connection-speeds')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.open-connections')).toBeNull();
   });
 
   it('offers removal on completed and cancelled rows and refreshes after an individual removal', async () => {

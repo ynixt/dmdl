@@ -138,42 +138,6 @@ class Aria2JsonRpcGatewayTest {
     }
 
     @Test
-    fun `maps individual in-flight speeds including duplicate servers without exposing URLs`() {
-        var requestBody = ""
-        withServer({ body ->
-            requestBody = body
-            """{"result":[{"index":"1","servers":[{"uri":"https://secret.example/token","currentUri":"https://secret.example/redirect","downloadSpeed":"1048576"},{"uri":"https://secret.example/token","downloadSpeed":"512"}]},{"index":"2","servers":[{"downloadSpeed":"0"}]}]}"""
-        }) { gateway ->
-            assertEquals(listOf(1048576L, 512L, 0L), gateway.connectionSpeeds("abc"))
-        }
-        assertTrue(requestBody.contains("aria2.getServers"))
-        assertTrue(requestBody.contains("\"params\":[\"token:test-secret\",\"abc\"]"))
-        withServer({ """{"result":[]}""" }) { gateway ->
-            assertEquals(emptyList(), gateway.connectionSpeeds("abc"))
-        }
-        withServer({ """{"result":[{"index":"1","servers":[]}]}""" }) { gateway ->
-            assertEquals(emptyList(), gateway.connectionSpeeds("abc"))
-        }
-    }
-
-    @Test
-    fun `rejects malformed connection statistics with safe diagnostics`() {
-        listOf(
-            "{}",
-            "[{}]",
-            """[{"servers":{}}]""",
-            """[{"servers":[{}]}]""",
-            """[{"servers":[{"downloadSpeed":"bad","uri":"secret-url"}]}]""",
-            """[{"servers":[{"downloadSpeed":"-1"}]}]""",
-        ).forEach { result ->
-            withServer({ """{"result":$result}""" }) { gateway ->
-                val error = assertFailsWith<Aria2RpcException> { gateway.connectionSpeeds("abc") }
-                assertTrue(!error.message.orEmpty().contains("secret-url"))
-            }
-        }
-    }
-
-    @Test
     fun `optional connection counts tolerate missing malformed and negative values`() {
         listOf(null, "bad", "-1", "99999999999999").forEach { value ->
             val field = value?.let { ",\"connections\":\"$it\"" }.orEmpty()

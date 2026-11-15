@@ -8,6 +8,7 @@ import { SettingsDraftStore } from './settings-draft.store';
 import { SettingsFeedbackComponent } from './settings-feedback.component';
 import { StorageFieldsComponent } from './storage-fields.component';
 import { TransferFieldsComponent } from './transfer-fields.component';
+import { Aria2RestartComponent } from './aria2-restart.component';
 
 @Component({
   selector: 'app-settings-storage-tab',
@@ -19,6 +20,7 @@ import { TransferFieldsComponent } from './transfer-fields.component';
     SettingsFeedbackComponent,
     StorageFieldsComponent,
     TransferFieldsComponent,
+    Aria2RestartComponent,
   ],
   styleUrls: ['./debrid.scss', './wizard.scss'],
   template: `
@@ -68,6 +70,7 @@ import { TransferFieldsComponent } from './transfer-fields.component';
         (changed)="slice.touch()"
       />
     </fieldset>
+    <app-aria2-restart />
     <footer class="wizard-footer">
       <p-button
         [label]="'KZ.SAVE_SETTINGS' | translate"

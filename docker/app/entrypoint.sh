@@ -77,7 +77,9 @@ java --enable-native-access=ALL-UNNAMED ${DMDL_JAVA_OPTS:-} -jar /app/app.jar \
   --application.storage.root=/media \
   --application.aria2.rpc-url="http://127.0.0.1:$aria2_rpc_port/jsonrpc" \
   --application.aria2.application-staging-root=/media/.dmdl \
-  --application.aria2.daemon-staging-root=/downloads/.dmdl &
+  --application.aria2.daemon-staging-root=/downloads/.dmdl \
+  --application.aria2.startup-options-file=/data/aria2/startup-options.conf \
+  --application.aria2.restart-marker-file=/run/dmdl/aria2-restart-requested &
 backend_pid=$!
 
 (

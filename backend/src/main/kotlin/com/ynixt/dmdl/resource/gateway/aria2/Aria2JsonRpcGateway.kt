@@ -72,22 +72,6 @@ class Aria2JsonRpcGateway(
             if (error.message?.contains("not found", ignoreCase = true) == true) null else throw error
         }
 
-    override fun connectionSpeeds(gid: String): List<Long> {
-        val files = rpc("aria2.getServers", listOf(gid), minOf(properties.requestTimeout, Duration.ofSeconds(1)))
-        if (!files.isArray) throw Aria2RpcException(message = "aria2 returned malformed connection statistics")
-        return files.toList().flatMap { file ->
-            val servers = file["servers"]
-            if (servers == null || !servers.isArray) {
-                throw Aria2RpcException(message = "aria2 returned malformed connection statistics")
-            }
-            servers.toList().map { server ->
-                val speed = server["downloadSpeed"].strictLong("servers.downloadSpeed")
-                if (speed < 0) throw Aria2RpcException(message = "aria2 returned negative connection speed")
-                speed
-            }
-        }
-    }
-
     override fun replaceUris(
         gid: String,
         uri: String,
@@ -143,6 +127,16 @@ class Aria2JsonRpcGateway(
             version = node["version"]?.asString().orEmpty(),
             enabledFeatures = node["enabledFeatures"]?.toList()?.map(JsonNode::asString).orEmpty(),
         )
+    }
+
+    override fun globalOption(name: String): String? = rpc("aria2.getGlobalOption", emptyList())[name]?.asString()
+
+    override fun shutdown() {
+        rpc("aria2.shutdown", emptyList())
+    }
+
+    override fun forceShutdown() {
+        rpc("aria2.forceShutdown", emptyList())
     }
 
     private fun rpc(

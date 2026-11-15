@@ -89,7 +89,35 @@
                 | number: '1.1-1'
             }}
             {{ byteUnit(request.progress.totalBytes) }} ·
-            {{ request.progress.speedBytesPerSecond / 1048576 | number: '1.1-1' }} MiB/s
+            @switch (phase(request)) {
+              @case ('WAITING_FOR_ARIA2') {
+                <span class="transfer-phase" role="status">
+                  <i class="pi pi-hourglass" aria-hidden="true"></i>
+                  {{ 'KZ.PHASE_WAITING_FOR_ARIA2' | translate }}
+                </span>
+              }
+              @case ('WRITING_TO_DISK') {
+                <span class="transfer-phase" role="status">
+                  <i class="pi pi-save" aria-hidden="true"></i>
+                  {{ 'KZ.PHASE_WRITING_TO_DISK' | translate: { pending: pendingMiB(request) } }}
+                </span>
+              }
+              @case ('ARIA2_RESTARTING') {
+                <span class="transfer-phase" role="status">
+                  <i class="pi pi-spin pi-sync" aria-hidden="true"></i>
+                  {{ 'KZ.PHASE_ARIA2_RESTARTING' | translate }}
+                </span>
+              }
+              @case ('STALE') {
+                <span class="transfer-phase" role="status">
+                  <i class="pi pi-hourglass" aria-hidden="true"></i>
+                  {{ 'KZ.PHASE_STALE' | translate }}
+                </span>
+              }
+              @default {
+                {{ request.progress.speedBytesPerSecond / 1048576 | number: '1.1-1' }} MiB/s
+              }
+            }
           </p>
           @if (request.state === 'TRANSFERRING' && !cancelling(request)) {
             <p class="hint">
@@ -111,23 +139,13 @@
             <p class="open-connections">
               {{ 'KZ.OPEN_CONNECTIONS' | translate }} · {{ connections }}
             </p>
-            @let speeds = request.progress.connectionSpeedsBytesPerSecond;
-            @if (speeds?.length) {
-              <ul class="connection-speeds" [attr.aria-label]="'KZ.CONNECTION_SPEEDS' | translate">
-                @for (speed of speeds ?? []; track $index) {
-                  @let rate = connectionRate(speed);
-                  <li>
-                    <span>{{ 'KZ.CONNECTION' | translate }} {{ $index + 1 }}</span>
-                    <strong>{{ rate.value | number: '1.0-2' }} {{ rate.unit }}</strong>
-                  </li>
-                }
-              </ul>
-            } @else if (connections > 0) {
-              <p class="hint">{{ 'KZ.CONNECTION_SPEEDS_UNAVAILABLE' | translate }}</p>
-            }
           }
           @if (request.state === 'TRANSFERRING' && speedPoints()[request.id]; as points) {
-            <app-download-speed-chart [samples]="points" />
+            <app-download-speed-chart
+              [samples]="points"
+              [diskActivity]="request.progress.diskActivity"
+              [sharedDisk]="transferringCount() > 1"
+            />
           }
         </div>
       }

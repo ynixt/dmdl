@@ -32,6 +32,7 @@ class Aria2TransferOptionsTest {
         assertFalse(options.lowestSpeedLimitEnabled)
         assertEquals(50, options.lowestSpeedLimitKib)
         assertEquals(0, options.retryWaitSeconds)
+        assertEquals(60, options.autoSaveIntervalSeconds)
     }
 
     @Test

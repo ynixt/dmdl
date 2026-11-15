@@ -57,7 +57,8 @@ class ConfigurationValidation(
                 transfer.retryWaitSeconds in 0..600 &&
                 (!transfer.lowestSpeedLimitEnabled || transfer.lowestSpeedLimitKib in 1..1048576) &&
                 transfer.diskCacheMib in 0..4096 && transfer.timeoutSeconds in 1..600 &&
-                transfer.maxFileNotFound in 0..100 && transfer.maxConcurrentPerDebrid in 1..settings.maxConcurrentDownloads,
+                transfer.maxFileNotFound in 0..100 && transfer.maxConcurrentPerDebrid in 1..settings.maxConcurrentDownloads &&
+                transfer.autoSaveIntervalSeconds in 0..600,
         ) { "Invalid aria2 transfer settings" }
         require(settings.locale in setOf("en", "en-US", "pt-BR")) { "Unsupported language" }
         jellyfin(settings.jellyfin)

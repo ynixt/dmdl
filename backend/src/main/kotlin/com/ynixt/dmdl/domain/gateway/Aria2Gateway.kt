@@ -14,8 +14,6 @@ interface Aria2Gateway {
 
     fun findStatus(gid: String): Aria2TransferStatus?
 
-    fun connectionSpeeds(gid: String): List<Long>
-
     fun replaceUris(
         gid: String,
         uri: String,
@@ -42,4 +40,12 @@ interface Aria2Gateway {
     fun removeDownloadResult(gid: String)
 
     fun version(): Aria2Version
+
+    /** A global option as the running aria2 reports it, or null when aria2 does not report it. */
+    fun globalOption(name: String): String?
+
+    /** Clean shutdown: aria2 saves its control files and session before exiting. */
+    fun shutdown()
+
+    fun forceShutdown()
 }

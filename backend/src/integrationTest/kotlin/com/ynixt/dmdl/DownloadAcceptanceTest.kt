@@ -912,11 +912,7 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
                                             ?.get("progress")
                                             ?.get("connections")
                                             ?.asInt() ?: 0
-                                    val speeds = item?.get("request")?.get("progress")?.get("connectionSpeedsBytesPerSecond")
-                                    if (completed > 0 && connectionCount > 0 && speeds?.isArray == true && speeds.any { it.asLong() > 0 }) {
-                                        assertTrue(speeds.all { it.isNumber && it.asLong() >= 0 })
-                                        return@supplyAsync completed
-                                    }
+                                    if (completed > 0 && connectionCount > 0) return@supplyAsync completed
                                 }
                             }
                             @Suppress("UNREACHABLE_CODE")
@@ -936,8 +932,7 @@ class DownloadAcceptanceTest : IntegrationEnvironment() {
                 assertTrue(json.readTree(state.body())["request"]["progress"]["completedBytes"].asLong() > 0)
                 val liveProgress = json.readTree(state.body())["request"]["progress"]
                 assertTrue(liveProgress["connections"].asInt() > 0)
-                assertTrue(liveProgress["connectionSpeedsBytesPerSecond"].isArray)
-                assertTrue(liveProgress["connectionSpeedsBytesPerSecond"].any { it.asLong() > 0 })
+                assertNull(liveProgress["connectionSpeedsBytesPerSecond"])
             }
             assertTrue(Files.exists(directory))
             assertTrue(Files.walk(directory).use { files -> files.anyMatch { Files.isRegularFile(it) && Files.size(it) > 0 } })

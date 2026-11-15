@@ -15,17 +15,54 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import type { ChartData, ChartOptions, TooltipItem } from 'chart.js';
 import { UIChart } from 'primeng/chart';
+import type { DiskActivityAvailability, SpeedSample } from '../../services/debrid-api.service';
 
 /** One chart point: epoch milliseconds, bytes per second and open connections. */
 export interface SpeedPoint {
   at: number;
   speedBytesPerSecond: number;
   connections: number;
+  /** Container-wide disk write speed; absent when disk activity is unavailable. */
+  diskBytesPerSecond?: number | null;
+}
+
+/** Longest gap between two stored samples that is still averaged from their cumulative bytes. */
+const MAX_CUMULATIVE_GAP_MS = 90_000;
+
+/**
+ * Turns stored samples into chart points. Each point is the true average since the previous sample, from the
+ * cumulative byte counters; legacy samples, long gaps (pauses), counters that went backwards and a previous value of 0
+ * (a restarted aria2 reports 0 before reading its control file) fall back to the stored speed.
+ */
+export function samplesToPoints(samples: SpeedSample[]): SpeedPoint[] {
+  return samples.map((sample, index) => {
+    const at = Date.parse(sample.at);
+    const previous = samples[index - 1];
+    const gap = previous ? at - Date.parse(previous.at) : 0;
+    const rate = (current?: number | null, before?: number | null): number | undefined =>
+      gap > 0 &&
+      gap <= MAX_CUMULATIVE_GAP_MS &&
+      current != null &&
+      before != null &&
+      before > 0 &&
+      current >= before
+        ? ((current - before) * 1000) / gap
+        : undefined;
+    const disk = rate(sample.diskBytes, previous?.diskBytes);
+    return {
+      at,
+      speedBytesPerSecond:
+        rate(sample.completedBytes, previous?.completedBytes) ?? sample.speedBytesPerSecond,
+      connections: sample.connections,
+      ...(disk !== undefined ? { diskBytesPerSecond: disk } : {}),
+    };
+  });
 }
 
 interface ChartColors {
   speed: string;
   speedFill: string;
+  disk: string;
   connections: string;
   text: string;
   muted: string;
@@ -78,6 +115,20 @@ export function withAlpha(color: string, alpha: number): string {
     } @else {
       <p class="hint speed-chart-empty">{{ 'KZ.SPEED_CHART_EMPTY' | translate }}</p>
     }
+    @switch (diskActivity()) {
+      @case ('CGROUP_V2_MISSING') {
+        <p class="hint disk-activity-note" role="note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          {{ 'KZ.DISK_ACTIVITY_CGROUP_V2_MISSING' | translate }}
+        </p>
+      }
+      @case ('NO_BLOCK_STATS') {
+        <p class="hint disk-activity-note" role="note">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+          {{ 'KZ.DISK_ACTIVITY_NO_BLOCK_STATS' | translate }}
+        </p>
+      }
+    }
   `,
   styles: `
     .speed-chart {
@@ -88,15 +139,32 @@ export function withAlpha(color: string, alpha: number): string {
     .speed-chart p-chart {
       height: 100%;
     }
+    .disk-activity-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.35rem;
+      margin: 0.25rem 0 0;
+      font-size: 0.85rem;
+      opacity: 0.8;
+      overflow-wrap: anywhere;
+    }
   `,
 })
 export class DownloadSpeedChartComponent {
   readonly samples = input.required<SpeedPoint[]>();
+  readonly diskActivity = input<DiskActivityAvailability | null | undefined>(undefined);
+  /** The disk line covers every transfer of the container, so say so when several are active. */
+  readonly sharedDisk = input(false);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly destroy = inject(DestroyRef);
   private readonly chart = viewChild(UIChart);
   private readonly labels = toSignal(
-    inject(TranslateService).stream(['KZ.SPEED_CHART_SPEED', 'KZ.OPEN_CONNECTIONS']),
+    inject(TranslateService).stream([
+      'KZ.SPEED_CHART_SPEED',
+      'KZ.OPEN_CONNECTIONS',
+      'KZ.SPEED_CHART_DISK',
+      'KZ.SPEED_CHART_DISK_ALL',
+    ]),
     { initialValue: {} as Record<string, string> },
   );
   private readonly colors = signal<ChartColors>(this.readColors());
@@ -157,7 +225,7 @@ export class DownloadSpeedChartComponent {
   };
 
   constructor() {
-    effect(() => this.render(this.samples(), this.colors(), this.labels()));
+    effect(() => this.render(this.samples(), this.colors(), this.labels(), this.sharedDisk()));
     afterNextRender(() => {
       this.colors.set(this.readColors());
       const media = window.matchMedia?.('(prefers-color-scheme: dark)');
@@ -176,12 +244,21 @@ export class DownloadSpeedChartComponent {
     });
   }
 
-  private render(samples: SpeedPoint[], colors: ChartColors, labels: Record<string, string>): void {
+  private render(
+    samples: SpeedPoint[],
+    colors: ChartColors,
+    labels: Record<string, string>,
+    sharedDisk: boolean,
+  ): void {
     const speed = samples.map((sample) => ({
       x: sample.at,
       y: mebibytesPerSecond(sample.speedBytesPerSecond),
     }));
+    const disk = samples
+      .filter((sample) => sample.diskBytesPerSecond != null)
+      .map((sample) => ({ x: sample.at, y: mebibytesPerSecond(sample.diskBytesPerSecond ?? 0) }));
     const connections = samples.map((sample) => ({ x: sample.at, y: sample.connections }));
+    const diskLabel = sharedDisk ? 'KZ.SPEED_CHART_DISK_ALL' : 'KZ.SPEED_CHART_DISK';
     this.data.datasets = [
       {
         label: labels['KZ.SPEED_CHART_SPEED'] ?? 'KZ.SPEED_CHART_SPEED',
@@ -195,6 +272,23 @@ export class DownloadSpeedChartComponent {
         pointHitRadius: 6,
         tension: 0,
       },
+      ...(disk.length
+        ? [
+            {
+              label: labels[diskLabel] ?? diskLabel,
+              data: disk,
+              yAxisID: 'speed',
+              borderColor: colors.disk,
+              backgroundColor: colors.disk,
+              borderDash: [6, 4],
+              fill: false,
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHitRadius: 6,
+              tension: 0,
+            },
+          ]
+        : []),
       {
         label: labels['KZ.OPEN_CONNECTIONS'] ?? 'KZ.OPEN_CONNECTIONS',
         data: connections,
@@ -229,6 +323,7 @@ export class DownloadSpeedChartComponent {
     return {
       speed,
       speedFill: withAlpha(speed, 0.18),
+      disk: token('--p-sky-500', '#0ea5e9'),
       connections: token('--p-orange-500', token('--p-text-muted-color', '#f97316')),
       text: token('--p-text-color', '#334155'),
       muted: token('--p-text-muted-color', '#64748b'),

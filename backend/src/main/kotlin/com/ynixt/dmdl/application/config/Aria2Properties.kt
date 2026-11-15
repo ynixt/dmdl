@@ -15,6 +15,11 @@ data class Aria2Properties(
     val daemonStagingRoot: String = "/downloads/.dmdl",
     val connectTimeout: Duration = Duration.ofSeconds(3),
     val requestTimeout: Duration = Duration.ofSeconds(10),
+    /** aria2 `--conf-path` with startup-only options; written by the backend, read by start-aria2.sh. */
+    val startupOptionsFile: String = "",
+    /** Marker that tells the start-aria2.sh supervisor to start aria2 again after it exits. */
+    val restartMarkerFile: String = "",
+    val restartTimeout: Duration = Duration.ofSeconds(60),
 )
 
 @Configuration

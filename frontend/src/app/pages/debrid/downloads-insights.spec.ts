@@ -306,4 +306,80 @@ describe('Downloads page insights', () => {
       fixture.componentInstance.speedPoints()['active'].map((point) => point.speedBytesPerSecond),
     ).toEqual([3500, 5000]);
   });
+  it('shows a phase instead of the speed while aria2 does not answer, writes to disk or restarts', async () => {
+    const waiting = download('waiting', 'TRANSFERRING');
+    waiting.request.progress = { ...waiting.request.progress, phase: 'WAITING_FOR_ARIA2' };
+    const writing = download('writing', 'TRANSFERRING');
+    writing.request.progress = {
+      ...writing.request.progress,
+      phase: 'WRITING_TO_DISK',
+      pendingWriteBytes: 400 * 1048576,
+    };
+    const restarting = download('restarting', 'TRANSFERRING');
+    restarting.request.progress = { ...restarting.request.progress, phase: 'ARIA2_RESTARTING' };
+    const moving = download('moving', 'TRANSFERRING');
+    moving.request.progress = {
+      ...moving.request.progress,
+      phase: 'TRANSFERRING',
+      speedBytesPerSecond: 35 * 1048576,
+    };
+    records = [waiting, writing, restarting, moving];
+    await render();
+    expect(section('waiting').querySelector('.transfer-phase')?.textContent).toContain(
+      'KZ.PHASE_WAITING_FOR_ARIA2',
+    );
+    expect(section('writing').querySelector('.transfer-phase')?.textContent).toContain(
+      'KZ.PHASE_WRITING_TO_DISK',
+    );
+    expect(fixture.componentInstance.pendingMiB(writing.request)).toBe(400);
+    expect(section('restarting').querySelector('.transfer-phase')?.textContent).toContain(
+      'KZ.PHASE_ARIA2_RESTARTING',
+    );
+    for (const id of ['waiting', 'writing', 'restarting']) {
+      expect(section(id).textContent).not.toContain('MiB/s');
+    }
+    expect(section('moving').querySelector('.transfer-phase')).toBeNull();
+    expect(section('moving').textContent).toContain('35.0 MiB/s');
+  });
+
+  it('treats progress not refreshed for more than five seconds as stale', async () => {
+    const active = download('active', 'TRANSFERRING');
+    active.request.progress = { ...active.request.progress, phase: 'TRANSFERRING' };
+    records = [active];
+    await render();
+    expect(fixture.componentInstance.phase(active.request)).toBe('TRANSFERRING');
+    now += 6000;
+    fixture.componentInstance.now.set(Date.now());
+    await settle();
+    expect(fixture.componentInstance.phase(active.request)).toBe('STALE');
+    expect(section('active').querySelector('.transfer-phase')?.textContent).toContain(
+      'KZ.PHASE_STALE',
+    );
+    pushStream();
+    await settle();
+    expect(section('active').querySelector('.transfer-phase')).toBeNull();
+  });
+
+  it('estimates the remaining time from the one-minute average so a short freeze changes it gradually', async () => {
+    const active = download('active', 'TRANSFERRING');
+    active.request.progress = {
+      completedBytes: 0,
+      totalBytes: 10_000 * 1048576,
+      speedBytesPerSecond: 35 * 1048576,
+      averageBytesPerSecond: 35 * 1048576,
+    };
+    const page = TestBed.createComponent(DownloadsPage).componentInstance;
+    const before = page.remainingSeconds(active.request)!;
+    // 15 s freeze: the observed 10 s speed drops to 0, the 60 s average only to three quarters.
+    active.request.progress = {
+      ...active.request.progress,
+      speedBytesPerSecond: 0,
+      averageBytesPerSecond: 26.25 * 1048576,
+    };
+    const during = page.remainingSeconds(active.request)!;
+    expect(before).toBe(286);
+    expect(during).toBe(381);
+    active.request.progress = { ...active.request.progress, averageBytesPerSecond: 0 };
+    expect(page.remainingSeconds(active.request)).toBeUndefined();
+  });
 });

@@ -16,6 +16,11 @@ esac
 config_dir="${DMDL_ARIA2_CONFIG_DIR:-/config}"
 mkdir -p "$config_dir" /downloads/.dmdl
 touch "$config_dir/session.txt"
+# Startup-only options (auto-save-interval) written by the backend from the saved settings.
+startup_options="$config_dir/startup-options.conf"
+# The backend creates this marker before asking aria2 to shut down when the user restarts aria2.
+restart_marker="${DMDL_ARIA2_RESTART_MARKER:-/run/dmdl/aria2-restart-requested}"
+rm -f "$restart_marker"
 
 readout=/tmp/aria2-readout
 rm -f "$readout"
@@ -31,28 +36,6 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 143' TERM INT
 
-stdbuf -oL -eL aria2c \
-  --enable-rpc=true \
-  --rpc-listen-all="${DMDL_ARIA2_RPC_LISTEN_ALL:-true}" \
-  --rpc-listen-port="${DMDL_ARIA2_RPC_PORT:-6800}" \
-  --rpc-secret="${DMDL_ARIA2_RPC_SECRET}" \
-  --dir="${DMDL_ARIA2_DEFAULT_DIR:-/tmp}" \
-  --input-file="$config_dir/session.txt" \
-  --save-session="$config_dir/session.txt" \
-  --save-session-interval="${DMDL_ARIA2_SAVE_SESSION_INTERVAL:-30}" \
-  --continue=true \
-  --always-resume=true \
-  --max-resume-failure-tries=0 \
-  --max-concurrent-downloads=1 \
-  --auto-file-renaming=false \
-  --allow-overwrite=false \
-  --console-log-level="$log_level" \
-  --summary-interval=0 \
-  --human-readable=false \
-  --enable-color=false \
-  --show-console-readout=true \
-  --truncate-console-readout=false > "$readout" 2>&1 &
-aria2_pid=$!
 # mawk (Debian/Ubuntu) reads a pipe in large blocks unless interactive, which would hold aria2's
 # messages and allocation updates back; busybox awk reads line by line and warns about -W.
 awk_opts=
@@ -62,5 +45,43 @@ esac
 # shellcheck disable=SC2086
 awk $awk_opts -v status=/downloads/.dmdl/aria2-allocation.json -f /usr/local/bin/allocation-readout.awk < "$readout" &
 readout_pid=$!
-wait "$aria2_pid"
-aria2_pid=
+# Keep a writer open on the FIFO so the readout survives aria2 restarts instead of seeing end-of-file.
+exec 3<>"$readout"
+
+# Supervisor: this script keeps its PID for the entrypoint; aria2 is started again only after a requested restart.
+while :; do
+  conf_args=
+  if [ -f "$startup_options" ]; then conf_args="--conf-path=$startup_options"; fi
+  # shellcheck disable=SC2086
+  stdbuf -oL -eL aria2c \
+    --enable-rpc=true \
+    --rpc-listen-all="${DMDL_ARIA2_RPC_LISTEN_ALL:-true}" \
+    --rpc-listen-port="${DMDL_ARIA2_RPC_PORT:-6800}" \
+    --rpc-secret="${DMDL_ARIA2_RPC_SECRET}" \
+    --dir="${DMDL_ARIA2_DEFAULT_DIR:-/tmp}" \
+    --input-file="$config_dir/session.txt" \
+    --save-session="$config_dir/session.txt" \
+    --save-session-interval="${DMDL_ARIA2_SAVE_SESSION_INTERVAL:-30}" \
+    --continue=true \
+    --always-resume=true \
+    --max-resume-failure-tries=0 \
+    --max-concurrent-downloads=1 \
+    --auto-file-renaming=false \
+    --allow-overwrite=false \
+    --console-log-level="$log_level" \
+    --summary-interval=0 \
+    --human-readable=false \
+    --enable-color=false \
+    --show-console-readout=true \
+    --truncate-console-readout=false $conf_args > "$readout" 2>&1 &
+  aria2_pid=$!
+  status=0
+  wait "$aria2_pid" || status=$?
+  aria2_pid=
+  if [ -f "$restart_marker" ]; then
+    rm -f "$restart_marker"
+    echo "[aria2] restarting on request" >&2
+    continue
+  fi
+  exit "$status"
+done
