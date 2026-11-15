@@ -1,0 +1,103 @@
+# Weekly, grouped version updates. Security updates are opened as soon as an advisory exists,
+# independently of this schedule (enable "Dependabot security updates" in the repository settings).
+version: 2
+
+updates:
+  # Backend: Gradle plugins, libraries and the Gradle wrapper.
+  # Libraries without an explicit version follow the Spring Boot BOM and move with the Boot plugin.
+  - package-ecosystem: gradle
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+      kotlin:
+        patterns: ["org.jetbrains.kotlin*"]
+      backend-minor-patch:
+        update-types: [minor, patch]
+
+  # Frontend: Angular, PrimeNG and tooling.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      # Angular majors need `ng update` migrations; do them by hand.
+      - dependency-name: "@angular/*"
+        update-types: [version-update:semver-major]
+      - dependency-name: "@angular-devkit/*"
+        update-types: [version-update:semver-major]
+      - dependency-name: angular-eslint
+        update-types: [version-update:semver-major]
+    groups:
+      angular:
+        patterns: ["@angular/*", "@angular-devkit/*", "angular-eslint"]
+      primeng:
+        patterns: ["primeng", "primeicons", "@primeuix/*"]
+      codemirror:
+        patterns: ["@codemirror/*", "@lezer/*"]
+      frontend-minor-patch:
+        update-types: [minor, patch]
+
+  # Base images of the application image and the dev aria2 image.
+  - package-ecosystem: docker
+    directories: [/, /docker/aria2]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      # Stay on LTS lines (Java 25, Node 24); move to the next LTS on purpose.
+      - dependency-name: eclipse-temurin
+        update-types: [version-update:semver-major]
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+    groups:
+      base-images:
+        patterns: ["*"]
+
+  # Redis image pinned in compose.yaml, compose.build.yaml and docker-compose-dev.yml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      compose-images:
+        patterns: ["*"]
+
+  # Actions used by the Docker publish workflow.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns: ["*"]
