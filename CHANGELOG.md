@@ -4,6 +4,20 @@ All notable changes to dmdl are documented here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-15
+
+Maintenance release: dependency updates and test fixes, no change in behavior.
+
+### Changed
+
+- Dependency updates: Gradle 9.9.1, Chart.js 4.6.1, Angular CLI and build 21.2.30, Prettier 3.10.1.
+- The Docker image workflow uses the latest major versions of `actions/checkout` and the Docker actions.
+- Dependabot no longer proposes major versions of PrimeNG, PrimeIcons, `@primeuix/*`, TypeScript and Vitest; they need Angular 22 and will be upgraded together with it.
+
+### Fixed
+
+- Frontend unit tests failed on Node 25 and newer, because Node's built-in `localStorage` hid the jsdom one.
+
 ## [0.1.0] - 2026-11-15
 
 First public release.
@@ -100,5 +114,6 @@ dmdl searches movies, series and anime through Stremio metadata addons, finds re
 
 First version: search through Stremio addons, download with aria2, setup wizard, Docker image for linux/amd64 and linux/arm64.
 
-[Unreleased]: https://github.com/ynixt/dmdl/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ynixt/dmdl/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ynixt/dmdl/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ynixt/dmdl/releases/tag/v0.1.0
