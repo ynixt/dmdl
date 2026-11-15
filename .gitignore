@@ -8,3 +8,7 @@ replay_pid*.log
 /openspec/
 # Written into the image at build time (Dockerfile); never part of the source tree.
 /frontend/public/version.json
+# Local AI tooling (OpenSpec skills/commands, worktrees, settings); see AGENTS.md for shared guidance.
+/.claude/
+/.codex/
+/.aiassistant/

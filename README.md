@@ -51,6 +51,9 @@ docker compose up -d
 
 Open <http://localhost:8080> (or the port you set in `DMDL_PORT`).
 
+> [!IMPORTANT]
+> Until the admin account exists, **anyone who can reach dmdl can create it** and take over the instance. Create your account right after the first start, before exposing the port to the internet or putting dmdl behind a public reverse proxy. If someone else got there first, run `docker compose down -v` (it deletes the `application_data` and `redis_data` volumes, including all settings and login sessions) and start again.
+
 ### 3. Set it up
 
 1. Create your admin account. Registration closes once the account exists.
@@ -216,6 +219,19 @@ To publish the release commit and tag:
 git push origin HEAD
 git push origin v0.0.8
 ```
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run dmdl locally and what a pull request needs, and [CHANGELOG.md](CHANGELOG.md) for what changed in each release. Please report security issues privately as described in [SECURITY.md](SECURITY.md).
+
+## Credits
+
+The default release badges reuse artwork from these community projects. The images are loaded from their repositories, not shipped with dmdl, and belong to their authors:
+
+- [BetterFormatter](https://github.com/9mousaa/BetterFormatter) by [9mousaa](https://github.com/9mousaa) – quality, resolution, HDR/Dolby Vision, audio and channel badges.
+- [cardgenerator](https://github.com/je19921/cardgenerator.github.io) by [je19921](https://github.com/je19921) – streaming service, SDR and codec badges.
+
+Streaming service names and logos are trademarks of their respective owners and are used only to identify the source of a release.
 
 ## License
 
