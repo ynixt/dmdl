@@ -55,7 +55,7 @@
     "tailwindcss": "4.3.5",
     "typescript": "~5.9.3",
     "typescript-eslint": "8.72.2",
-    "vitest": "^4.1.12"
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": "^22.22.3 || ^24.15.0 || >=26.0.0",
