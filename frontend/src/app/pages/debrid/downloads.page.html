@@ -20,8 +20,7 @@
           <h2>{{ request.content.title }}</h2>
           <span class="status">{{
             'KZ.STATE_' + (cancelling(request) ? 'CANCELLING' : request.state) | translate
-          }}</span
-          ><span>{{ request.provider }}</span>
+          }}</span><span>{{ request.provider }}</span>
         </div>
         @if (request.content.episode !== undefined && request.content.episode !== null) {
           <p>
