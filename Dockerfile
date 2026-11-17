@@ -22,7 +22,7 @@ FROM eclipse-temurin:25-jre
 LABEL org.opencontainers.image.title="Debrid Media Downloader"
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends aria2 coreutils nginx python3 tini wget \
+    && apt-get install -y --no-install-recommends aria2 coreutils nginx python3 tini util-linux wget \
     && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/* \
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log \

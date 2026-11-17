@@ -3,6 +3,36 @@
 # If any of them exits, the others are stopped and the container exits so the restart policy applies.
 set -uo pipefail
 
+# The container starts as root to prepare /run, /data and the staging folder, then runs aria2, the
+# backend and the log collectors as DMDL_PUID:DMDL_PGID, so downloaded files belong to that host user.
+# nginx stays root (its workers drop to www-data) and never touches /media.
+if [ "$(id -u)" != 0 ]; then
+  echo "dmdl must start as root: remove 'user:' from the service and set DMDL_PUID / DMDL_PGID instead" >&2
+  exit 1
+fi
+puid="${DMDL_PUID:-0}"
+pgid="${DMDL_PGID:-$puid}"
+file_umask="${DMDL_UMASK:-022}"
+for value in "$puid" "$pgid"; do
+  case "$value" in
+    '' | *[!0-9]*) echo "Invalid DMDL_PUID/DMDL_PGID '$value': use a numeric id" >&2; exit 1 ;;
+  esac
+done
+case "$file_umask" in
+  [0-7][0-7][0-7] | 0[0-7][0-7][0-7]) ;;
+  *) echo "Invalid DMDL_UMASK '$file_umask': use an octal value such as 022 or 002" >&2; exit 1 ;;
+esac
+umask "$file_umask"
+
+# Runs a command as DMDL_PUID:DMDL_PGID. setpriv execs in place, so $! stays the service's PID.
+run_as() {
+  if [ "$puid" = 0 ] && [ "$pgid" = 0 ]; then
+    "$@"
+  else
+    setpriv --reuid="$puid" --regid="$pgid" --clear-groups -- "$@"
+  fi
+}
+
 # aria2 RPC only listens on loopback, but it can still write files anywhere in the container,
 # so it keeps a secret. Without an explicit one, a random secret is generated on every start
 # and shared with the backend (env) and the healthcheck (root-only file).
@@ -10,8 +40,25 @@ if [ -z "${DMDL_ARIA2_RPC_SECRET:-}" ]; then
   DMDL_ARIA2_RPC_SECRET="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 fi
 export DMDL_ARIA2_RPC_SECRET
-install -d -m 0700 /run/dmdl
+# /run/dmdl can be traversed but not listed; each entry protects itself (the secret is root-only,
+# logs/ and aria2/ belong to the service user).
+install -d -m 0711 /run/dmdl
+chmod 0711 /run/dmdl
 (umask 077 && printf '%s' "$DMDL_ARIA2_RPC_SECRET" > /run/dmdl/aria2-rpc-secret)
+# Holds the marker the backend writes to ask the aria2 supervisor for a restart.
+install -d -m 0700 -o "$puid" -g "$pgid" /run/dmdl/aria2 || exit 1
+# A readout FIFO left by a previous run of this container (docker restart keeps /tmp).
+rm -f /tmp/aria2-readout
+
+# aria2 and the backend write the database, the aria2 session and the staging folder.
+if [ "$puid" != 0 ] || [ "$pgid" != 0 ]; then
+  mkdir -p /data /media/.dmdl || exit 1
+  chown -R "$puid:$pgid" /data /media/.dmdl || exit 1
+  if ! run_as test -w /media; then
+    echo "/media is not writable by DMDL_PUID=$puid / DMDL_PGID=$pgid; give that user write access to the mounted media folder" >&2
+    exit 1
+  fi
+fi
 
 # nginx access log: off by default (the UI polls and streams constantly), one line per request
 # on stdout with DMDL_NGINX_ACCESS_LOG=true. Included from the server block of nginx.conf.
@@ -35,9 +82,11 @@ readiness_pid=
 collector_pids=()
 
 /usr/local/bin/dmdl-log-collector --initialize || exit 1
+# The backend reads the captured logs; collectors run as the same user so it can.
+chown -R "$puid:$pgid" /run/dmdl/logs || exit 1
 for source in backend nginx aria2; do
   mkfifo "/run/dmdl/logs/$source.pipe" || exit 1
-  /usr/local/bin/dmdl-log-collector --source "$source" < "/run/dmdl/logs/$source.pipe" &
+  run_as /usr/local/bin/dmdl-log-collector --source "$source" < "/run/dmdl/logs/$source.pipe" &
   collector_pids+=("$!")
 done
 
@@ -76,7 +125,8 @@ DMDL_ARIA2_RPC_PORT="$aria2_rpc_port" \
 DMDL_ARIA2_RPC_LISTEN_ALL=false \
 DMDL_ARIA2_CONFIG_DIR=/data/aria2 \
 DMDL_ARIA2_DEFAULT_DIR=/tmp \
-  /usr/local/bin/start-aria2 > /run/dmdl/logs/aria2.pipe 2>&1 &
+DMDL_ARIA2_RESTART_MARKER=/run/dmdl/aria2/restart-requested \
+  run_as /usr/local/bin/start-aria2 > /run/dmdl/logs/aria2.pipe 2>&1 &
 aria2_pid=$!
 
 for _ in $(seq 1 60); do
@@ -91,7 +141,7 @@ done
 
 # DMDL_JAVA_OPTS is intentionally word-split into separate JVM options.
 # shellcheck disable=SC2086
-java --enable-native-access=ALL-UNNAMED ${DMDL_JAVA_OPTS:-} -jar /app/app.jar \
+run_as java --enable-native-access=ALL-UNNAMED ${DMDL_JAVA_OPTS:-} -jar /app/app.jar \
   --server.address=127.0.0.1 \
   --server.port="$backend_port" \
   --application.database.path=/data/dmdl.db \
@@ -100,7 +150,7 @@ java --enable-native-access=ALL-UNNAMED ${DMDL_JAVA_OPTS:-} -jar /app/app.jar \
   --application.aria2.application-staging-root=/media/.dmdl \
   --application.aria2.daemon-staging-root=/downloads/.dmdl \
   --application.aria2.startup-options-file=/data/aria2/startup-options.conf \
-  --application.aria2.restart-marker-file=/run/dmdl/aria2-restart-requested \
+  --application.aria2.restart-marker-file=/run/dmdl/aria2/restart-requested \
   > /run/dmdl/logs/backend.pipe 2>&1 &
 backend_pid=$!
 

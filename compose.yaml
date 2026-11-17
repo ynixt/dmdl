@@ -17,6 +17,10 @@ services:
       # aria2 log detail: debug, info, notice (default), warn or error.
       # info and debug also log download URLs, and debrid links can carry tokens.
       # DMDL_ARIA2_LOG_LEVEL: info
+      # Owner of downloaded files (run `id` on the host). Without them, files belong to root.
+      # Do not use `user:` for this; the container must start as root.
+      # DMDL_PUID: 1000
+      # DMDL_PGID: 1000
       # Set to "true" to log one nginx access line per request (off by default).
       # DMDL_NGINX_ACCESS_LOG: "true"
     ports:

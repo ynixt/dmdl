@@ -64,6 +64,22 @@ Open <http://localhost:8080> (or the port you set in `DMDL_PORT`).
 3. Search a title, pick a release and a destination folder, and download.
 4. Optionally add [webhooks](#webhooks) in **Settings → Webhooks**, for example to refresh Jellyfin or get a phone notification.
 
+### File ownership
+
+By default aria2 and the backend run as root, so downloaded files and folders belong to root on your machine and other apps (for example Jellyfin deleting a watched episode) may not be able to change them. To make them belong to your user, set `DMDL_PUID` and `DMDL_PGID` on the `dmdl` service (run `id` on the host to see yours):
+
+```yaml
+    environment:
+      DMDL_PUID: 1000
+      DMDL_PGID: 1000
+      # Optional: 002 also gives the group write access.
+      # DMDL_UMASK: "002"
+```
+
+Do not use Compose's `user:` option instead: the container has to start as root to prepare its runtime folders, and it stops with an error if it does not.
+
+On every start dmdl gives that user ownership of `/data` and of its staging folder `/media/.dmdl`. It does not touch the rest of your library, and it stops with an error if the user cannot write to `/media`. Files and folders created by an earlier root run keep their owner; give them to your user once on the host, for example `sudo chown -R 1000:1000 /path/to/media`, or dmdl may fail to save into those folders.
+
 ### Extra destination folders
 
 To save to more than one disk, mount each folder into the `dmdl` service in `compose.yaml` and register its container path in **Settings**. For example, adding `D:/Movies:/media/hdd/movies` and `E:/Series:/media/ssd/series` under `volumes:` lets you use `/media/hdd/movies` and `/media/ssd/series` as destinations.
@@ -161,6 +177,9 @@ These are read by the `dmdl` container and can be set under its `environment:`:
 
 | Variable | Default | Description |
 | --- | --- | --- |
+| `DMDL_PUID` | `0` (root) | User id that aria2 and the backend run as, and that owns downloaded files. See [File ownership](#file-ownership). |
+| `DMDL_PGID` | `DMDL_PUID` | Group id for the same processes and files. |
+| `DMDL_UMASK` | `022` | umask for created files and folders, e.g. `002` to give the group write access. |
 | `DMDL_REDIS_HOST` | `localhost` | Redis host name only, without port or database. The example sets it to `redis`. |
 | `DMDL_REDIS_PORT` | `6379` | Redis port. |
 | `DMDL_REDIS_USERNAME` | empty | Optional Redis ACL user. Leave empty to authenticate with the password only (the `default` user). |
