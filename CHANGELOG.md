@@ -4,6 +4,16 @@ All notable changes to dmdl are documented here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-16
+
+### Added
+
+- `DMDL_PUID`, `DMDL_PGID` and `DMDL_UMASK` run aria2 and the backend as a chosen user, so downloaded files belong to that user instead of root (for example so Jellyfin can delete them). The container still starts as root and now stops with a clear message when started with Compose's `user:` option. Without these variables nothing changes. See [File ownership](https://github.com/ynixt/dmdl#file-ownership).
+
+### Changed
+
+- Dependency update: jsdom 31.0.1.
+
 ## [0.1.1] - 2026-11-15
 
 Maintenance release: dependency updates and test fixes, no change in behavior.
@@ -114,6 +124,7 @@ dmdl searches movies, series and anime through Stremio metadata addons, finds re
 
 First version: search through Stremio addons, download with aria2, setup wizard, Docker image for linux/amd64 and linux/arm64.
 
-[Unreleased]: https://github.com/ynixt/dmdl/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ynixt/dmdl/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ynixt/dmdl/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ynixt/dmdl/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ynixt/dmdl/releases/tag/v0.1.0
