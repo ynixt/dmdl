@@ -156,11 +156,11 @@ docker compose pull
 docker compose up -d
 ```
 
-Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.1.2`, or use `edge` for the latest `master` build.
+Settings and history are kept in the `application_data` volume. `latest` follows the newest release; you can pin a version such as `ghcr.io/ynixt/dmdl:0.1.3`, or use `edge` for the latest `master` build.
 
 Upgrading from a version with the built-in Jellyfin integration converts its settings into a **Jellyfin** webhook sent on `download.completed`, together with its notification history. That migration removes the old Jellyfin settings, so going back to an older version requires restoring a backup of the `application_data` volume taken before the upgrade.
 
-The navbar shows which build is running: the release tag (such as `v0.1.2`) for releases, the short commit for `edge` builds, and `local` for images you built yourself without `make up`.
+The navbar shows which build is running: the release tag (such as `v0.1.3`) for releases, the short commit for `edge` builds, and `local` for images you built yourself without `make up`.
 
 ### Environment variables
 
