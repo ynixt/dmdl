@@ -3,8 +3,8 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/ro
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
-import { ToolbarModule } from 'primeng/toolbar';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { ToolbarModule } from '@openng/optimus-ui/toolbar';
 import { AuthService } from '../../core/auth/auth.service';
 import { REPOSITORY_URL, VersionService } from '../../core/version/version.service';
 

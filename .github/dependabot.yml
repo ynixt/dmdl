@@ -25,7 +25,7 @@ updates:
       backend-minor-patch:
         update-types: [minor, patch]
 
-  # Frontend: Angular, PrimeNG and tooling.
+  # Frontend: Angular, Optimus UI and tooling.
   - package-ecosystem: npm
     directory: /frontend
     schedule:
@@ -46,13 +46,11 @@ updates:
         update-types: [version-update:semver-major]
       - dependency-name: angular-eslint
         update-types: [version-update:semver-major]
-      # These majors follow the Angular major (peer ranges of PrimeNG, @angular/build and
+      # These majors follow the Angular major (peer ranges of Optimus UI, @angular/build and
       # @angular/compiler-cli); move them together with the Angular migration.
-      - dependency-name: primeng
+      - dependency-name: "@openng/optimus-ui*"
         update-types: [version-update:semver-major]
-      - dependency-name: primeicons
-        update-types: [version-update:semver-major]
-      - dependency-name: "@primeuix/*"
+      - dependency-name: "@openng/icons"
         update-types: [version-update:semver-major]
       - dependency-name: typescript
         update-types: [version-update:semver-major]
@@ -61,8 +59,8 @@ updates:
     groups:
       angular:
         patterns: ["@angular/*", "@angular-devkit/*", "angular-eslint"]
-      primeng:
-        patterns: ["primeng", "primeicons", "@primeuix/*"]
+      optimus:
+        patterns: ["@openng/*"]
       codemirror:
         patterns: ["@codemirror/*", "@lezer/*"]
       frontend-minor-patch:

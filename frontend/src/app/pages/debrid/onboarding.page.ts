@@ -2,9 +2,9 @@ import { Component, ChangeDetectorRef, inject, OnInit, signal } from '@angular/c
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { InputTextModule } from '@openng/optimus-ui/inputtext';
+import { SelectModule } from '@openng/optimus-ui/select';
 import { firstValueFrom } from 'rxjs';
 import { SecretInputComponent } from '../../components/secret-input/secret-input.component';
 import { AuthService } from '../../core/auth/auth.service';

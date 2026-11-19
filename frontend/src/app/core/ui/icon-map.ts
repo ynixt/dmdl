@@ -1,5 +1,5 @@
 /**
- * Reviewed semantic mapping used while migrating Material Symbols to PrimeIcons.
+ * Reviewed semantic mapping from Material Symbols to OpenNG Icons.
  *
  * Icon-only interactive controls must expose their translated action through
  * `aria-label`. Icons next to visible text, status copy, or headings are

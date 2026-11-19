@@ -2,7 +2,7 @@ import { Component, DestroyRef, HostListener, inject, OnInit, signal } from '@an
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { ConfirmDialogModule } from '@openng/optimus-ui/confirmdialog';
 import { AppConfirmationService } from '../../core/ui/confirmation.service';
 import { SettingsDraftStore, SettingsTab } from './settings-draft.store';
 import { SettingsMetadataTabComponent } from './settings-metadata-tab.component';

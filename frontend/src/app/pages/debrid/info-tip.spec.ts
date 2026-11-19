@@ -1,13 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTranslateService, TranslateService } from '@ngx-translate/core';
-import { providePrimeNG } from 'primeng/config';
+import { provideOptimus } from '@openng/optimus-ui/config';
 import { InfoTipComponent } from './info-tip.component';
 
 describe('Info tip', () => {
   let fixture: ComponentFixture<InfoTipComponent>;
 
   async function render(): Promise<HTMLButtonElement> {
-    TestBed.configureTestingModule({ providers: [provideTranslateService(), providePrimeNG()] });
+    TestBed.configureTestingModule({ providers: [provideTranslateService(), provideOptimus()] });
     const translate = TestBed.inject(TranslateService);
     translate.setTranslation('en', {
       KZ: {

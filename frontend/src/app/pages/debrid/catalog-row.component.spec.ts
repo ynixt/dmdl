@@ -353,7 +353,7 @@ describe('CatalogRowComponent', () => {
     expect(api.get).not.toHaveBeenCalled();
   });
 
-  it('loads page zero and appends at the end without resetting the PrimeNG carousel page', async () => {
+  it('loads page zero and appends at the end without resetting the Optimus UI carousel page', async () => {
     const fixture = await create();
     const row = fixture.componentInstance;
     const carousel = row.carousel()!;

@@ -17,11 +17,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
-import { PaginatorModule } from 'primeng/paginator';
-import { ProgressSpinnerModule } from 'primeng/progressspinner';
-import { SelectModule } from 'primeng/select';
-import { TabsModule } from 'primeng/tabs';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { PaginatorModule } from '@openng/optimus-ui/paginator';
+import { ProgressSpinnerModule } from '@openng/optimus-ui/progressspinner';
+import { SelectModule } from '@openng/optimus-ui/select';
+import { TabsModule } from '@openng/optimus-ui/tabs';
 import { combineLatest, debounceTime, skip } from 'rxjs';
 import {
   Addon,

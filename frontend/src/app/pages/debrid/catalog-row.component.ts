@@ -13,9 +13,9 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
-import { Carousel, CarouselModule, CarouselPageEvent } from 'primeng/carousel';
-import { SelectModule } from 'primeng/select';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { Carousel, CarouselModule, CarouselPageEvent } from '@openng/optimus-ui/carousel';
+import { SelectModule } from '@openng/optimus-ui/select';
 import {
   Addon,
   Catalog,
@@ -236,7 +236,7 @@ export class CatalogRowComponent implements OnInit {
       this.page = restored.page;
       this.exhausted = restored.exhausted;
       this.fresh = restored.fresh;
-      // PrimeNG computes the initial offset after rendering its active-item attributes.
+      // Optimus UI computes the initial offset after rendering its active-item attributes.
       afterNextRender(() => this.carousel()?.cd.detectChanges(), { injector: this.injector });
       if (!restored.items.length && !restored.exhausted) await this.load();
     } else {

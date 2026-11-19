@@ -2,9 +2,9 @@ import { DatePipe } from '@angular/common';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
-import { CheckboxModule } from 'primeng/checkbox';
-import { DialogModule } from 'primeng/dialog';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { CheckboxModule } from '@openng/optimus-ui/checkbox';
+import { DialogModule } from '@openng/optimus-ui/dialog';
 import { DebridApi, Webhook, WebhookDelivery } from '../../services/debrid-api.service';
 import { webhookEventLabel } from './webhook-presets';
 

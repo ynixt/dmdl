@@ -13,8 +13,8 @@ import {
 import { TranslatePipe } from '@ngx-translate/core';
 import { Router } from '@angular/router';
 import { ApiAvailabilityService } from '../../core/api-availability.service';
-import { ButtonModule } from 'primeng/button';
-import { ProgressBarModule } from 'primeng/progressbar';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { ProgressBarModule } from '@openng/optimus-ui/progressbar';
 import {
   DebridApi,
   Download,

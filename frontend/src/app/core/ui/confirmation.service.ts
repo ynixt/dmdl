@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Confirmation, ConfirmationService } from 'primeng/api';
+import { Confirmation, ConfirmationService } from '@openng/optimus-ui/api';
 
 export interface ConfirmationOptions {
   message: string;
@@ -22,7 +22,7 @@ export class AppConfirmationService {
       const settle = (result: boolean): void => {
         if (settled) return;
         settled = true;
-        // PrimeNG 21 can report visibleChange(false) after an action has closed the dialog.
+        // Optimus UI can report visibleChange(false) after an action has closed the dialog.
         // Release its event references so that second close cannot emit into a closed subject.
         confirmation.acceptEvent?.unsubscribe();
         confirmation.rejectEvent?.unsubscribe();

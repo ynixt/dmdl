@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
-import { Password, PasswordModule } from 'primeng/password';
+import { Password, PasswordModule } from '@openng/optimus-ui/password';
 
 /**
  * - `current-password`: the user's own password when signing in.
@@ -117,7 +117,7 @@ export class SecretInputComponent implements ControlValueAccessor, OnInit {
   }
 
   /**
-   * PrimeNG swaps the show and hide templates when the mask toggles, so the button that was just
+   * Optimus UI swaps the show and hide templates when the mask toggles, so the button that was just
    * activated is destroyed. Move focus to its replacement so keyboard users keep their place.
    */
   protected keepToggleFocus(event: Event): void {

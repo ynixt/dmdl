@@ -7,7 +7,7 @@ import { DebridApi, Metadata, ReleaseGroup } from '../../services/debrid-api.ser
 import { DiscoveryPage } from './discovery.page';
 import { SettingsPage } from './settings.page';
 import { AppConfirmationService } from '../../core/ui/confirmation.service';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService } from '@openng/optimus-ui/api';
 
 describe('Manual discovery journey', () => {
   const source = '00000000-0000-0000-0000-000000000001';

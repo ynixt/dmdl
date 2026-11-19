@@ -14,7 +14,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import type { ChartData, ChartOptions, TooltipItem } from 'chart.js';
-import { UIChart } from 'primeng/chart';
+import { UIChart } from '@openng/optimus-ui/chart';
 import type { DiskActivityAvailability, SpeedSample } from '../../services/debrid-api.service';
 
 /** One chart point: epoch milliseconds, bytes per second and open connections. */

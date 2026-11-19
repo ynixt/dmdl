@@ -8,8 +8,8 @@ import {
 import { TitleStrategy, provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideTranslateService } from '@ngx-translate/core';
 import { provideTranslateHttpLoader } from '@ngx-translate/http-loader';
-import { providePrimeNG } from 'primeng/config';
-import { ConfirmationService } from 'primeng/api';
+import { provideOptimus } from '@openng/optimus-ui/config';
+import { ConfirmationService } from '@openng/optimus-ui/api';
 import { catchError, map, of, switchMap } from 'rxjs';
 import { NavigationHistory } from './pages/debrid/navigation-history.service';
 import { routes } from './app.routes';
@@ -19,15 +19,15 @@ import { AuthService } from './core/auth/auth.service';
 import { availabilityInterceptor } from './core/availability.interceptor';
 import { AppTitleStrategy } from './core/i18n/app-title.strategy';
 import { DEFAULT_LANGUAGE, I18nService, toSupportedLanguage } from './core/i18n/i18n.service';
-import { dmdlPrimeNgTheme } from './core/theme/dmdl.preset';
+import { dmdlOptimusTheme } from './core/theme/dmdl.preset';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     ConfirmationService,
     provideBrowserGlobalErrorListeners(),
-    providePrimeNG({
+    provideOptimus({
       ripple: true,
-      theme: dmdlPrimeNgTheme,
+      theme: dmdlOptimusTheme,
     }),
     provideHttpClient(
       withInterceptors([credentialsInterceptor, unauthorizedInterceptor, availabilityInterceptor]),

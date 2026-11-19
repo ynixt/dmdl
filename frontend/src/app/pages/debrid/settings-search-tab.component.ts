@@ -1,8 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { InputTextModule } from '@openng/optimus-ui/inputtext';
 import { SecretInputComponent } from '../../components/secret-input/secret-input.component';
 import { SearchAddonInput } from '../../services/debrid-api.service';
 import { SettingsDraftStore } from './settings-draft.store';

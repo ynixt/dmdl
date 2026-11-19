@@ -1,6 +1,10 @@
 import { Injectable, Type, inject } from '@angular/core';
 import { firstValueFrom, map, merge, take } from 'rxjs';
-import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import {
+  DialogService,
+  DynamicDialogConfig,
+  DynamicDialogRef,
+} from '@openng/optimus-ui/dynamicdialog';
 
 export interface AppDialogOptions {
   header?: string;

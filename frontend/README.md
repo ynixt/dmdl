@@ -1,6 +1,6 @@
 # Debrid Media Downloader frontend
 
-The frontend uses [Angular CLI](https://github.com/angular/angular-cli) 21.2.29 and PrimeNG 21 Community (MIT). PrimeUIX Themes 2 and PrimeIcons 7 are also pinned to MIT releases. Use Node.js 24.15.0+ in the 24.x line and npm 12.2.2. Run `npm ci` before starting development; see the root README for backend and Docker setup.
+The frontend uses [Angular CLI](https://github.com/angular/angular-cli) 21.2.30 and [Optimus UI](https://github.com/openng-org/optimus-ui) 1 with Optimus UI Themes and OpenNG Icons, all MIT licensed. Optimus UI 1 supports Angular 21; upgrade its major version together with Angular. Use Node.js 24.15.0+ in the 24.x line and npm 12.2.2. Run `npm ci` before starting development; see the root README for backend and Docker setup.
 
 ## Development server
 

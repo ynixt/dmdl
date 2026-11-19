@@ -23,7 +23,7 @@ scripts/    Release script (used by `make release`)
 - Downloads: aria2 over JSON-RPC (`resource/gateway/aria2`).
 - Webhooks: Mustache templates (jmustache).
 - Backend tests: JUnit 5, MockK, ArchUnit; integration tests (`src/integrationTest`) use Testcontainers (Redis, aria2).
-- Frontend: Angular 21 (standalone components, signals), PrimeNG + Tailwind CSS, ngx-translate, Vitest.
+- Frontend: Angular 21 (standalone components, signals), Optimus UI + Tailwind CSS, ngx-translate, Vitest.
 
 ## Backend architecture (hexagonal)
 

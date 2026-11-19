@@ -1,8 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
-import { SelectModule } from 'primeng/select';
+import { ButtonModule } from '@openng/optimus-ui/button';
+import { SelectModule } from '@openng/optimus-ui/select';
 import { Category, Content, DebridApi, Organization } from '../../services/debrid-api.service';
 import { SettingsDraftStore } from './settings-draft.store';
 import { SettingsFeedbackComponent } from './settings-feedback.component';

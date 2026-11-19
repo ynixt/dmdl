@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
-import { ButtonModule } from 'primeng/button';
+import { ButtonModule } from '@openng/optimus-ui/button';
 import { AppConfirmationService } from '../../core/ui/confirmation.service';
 import { Aria2Status, DebridApi, DownloadStatus } from '../../services/debrid-api.service';
 

@@ -1,7 +1,7 @@
 import { Component, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslatePipe } from '@ngx-translate/core';
-import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { ToggleSwitchModule } from '@openng/optimus-ui/toggleswitch';
 import { FinalizationChecks } from '../../services/debrid-api.service';
 import { InfoTipComponent } from './info-tip.component';
 

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { type Confirmation, ConfirmationService } from 'primeng/api';
+import { type Confirmation, ConfirmationService } from '@openng/optimus-ui/api';
 import { AppConfirmationService } from './confirmation.service';
 
 describe('AppConfirmationService', () => {

@@ -4,6 +4,12 @@ All notable changes to dmdl are documented here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-18
+
+### Changed
+
+- Replaced PrimeNG, PrimeUIX Themes and PrimeIcons with the MIT-licensed community fork Optimus UI 1.0.2, Optimus UI Themes and OpenNG Icons. Updated component imports, theme configuration, styles and Dependabot rules while retaining Angular 21 support.
+
 ## [0.1.2] - 2026-11-16
 
 ### Added
